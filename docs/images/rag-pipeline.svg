@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 700" width="1280" height="700" font-family="Helvetica, Arial, sans-serif">
+  <title>How the WOB Awards system uses retrieval-augmented generation (RAG)</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#555"/>
+    </marker>
+    <style>
+      .frame { fill: none; stroke: #222; stroke-width: 1.5; stroke-dasharray: 6 5; }
+      .section { font-size: 22px; font-weight: 600; fill: #111; }
+      .step { fill: #0097a7; }
+      .step-text { font-size: 16px; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+      .plain { fill: #fff; stroke: #333; stroke-width: 1.5; }
+      .plain-text { font-size: 16px; fill: #111; text-anchor: middle; dominant-baseline: central; }
+      .label { font-size: 15px; font-weight: 600; fill: #111; text-anchor: middle; }
+      .note { font-size: 12px; fill: #555; text-anchor: middle; }
+      .flow { fill: none; stroke: #555; stroke-width: 2.2; marker-end: url(#arrow); }
+      .flow-label { font-size: 12px; fill: #555; font-style: italic; }
+      .page { fill: #cfe3f5; stroke: #111; stroke-width: 2.5; }
+      .chunk { fill: #cfe3f5; stroke: #111; stroke-width: 2; }
+      .hit { fill: #ffaa00; stroke: #111; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="700" fill="#fff"/>
+  <text x="40" y="34" font-size="21" font-style="italic" fill="#222">Retrieval-augmented generation (RAG) in the WOB Awards system</text>
+  <text x="40" y="54" font-size="14" font-style="italic" fill="#555">The AI answers only from each finalist's own evidence, and every quote it cites is checked against the source.</text>
+
+  <!-- ===== Indexing ===== -->
+  <rect class="frame" x="20" y="66" width="1240" height="229"/>
+  <text class="section" x="38" y="96">Indexing</text>
+  <text class="note" x="575" y="96" text-anchor="middle">runs in the background worker each time the coordinator uploads documents</text>
+
+  <!-- Documents -->
+  <rect class="page" x="40" y="118" width="80" height="90"/>
+  <rect class="page" x="48" y="126" width="80" height="90"/>
+  <rect class="page" x="56" y="134" width="80" height="90"/>
+  <text class="label" x="88" y="250">Documents</text>
+  <text class="note" x="88" y="268">PDF, Word,</text>
+  <text class="note" x="88" y="284">Excel, images</text>
+
+  <rect class="step" x="170" y="155" width="120" height="44" rx="8"/>
+  <text class="step-text" x="230" y="177">Virus scan</text>
+  <text class="note" x="230" y="222">ClamAV</text>
+
+  <rect class="step" x="320" y="155" width="140" height="44" rx="8"/>
+  <text class="step-text" x="390" y="177">Extract &amp; OCR</text>
+  <text class="note" x="390" y="222">text, tables, page numbers;</text>
+  <text class="note" x="390" y="238">Tesseract for scans</text>
+
+  <rect class="step" x="490" y="155" width="120" height="44" rx="8"/>
+  <text class="step-text" x="550" y="177">Chunker</text>
+  <text class="note" x="550" y="222">~700 tokens,</text>
+  <text class="note" x="550" y="238">100-token overlap</text>
+
+  <!-- Chunks -->
+  <rect class="chunk" x="642" y="146" width="96" height="48"/>
+  <rect class="chunk" x="650" y="154" width="96" height="48"/>
+  <rect class="chunk" x="658" y="162" width="96" height="48"/>
+  <text class="label" x="698" y="250">Chunks</text>
+
+  <rect class="step" x="790" y="155" width="130" height="44" rx="8"/>
+  <text class="step-text" x="855" y="177">Embedder</text>
+  <text class="note" x="855" y="222">nomic-embed-text v1.5</text>
+  <text class="note" x="855" y="238">768 dimensions, local</text>
+
+  <!-- Vector DB -->
+  <path d="M995 130v74a35 13 0 0 0 70 0v-74" fill="#ffaa00" stroke="#111" stroke-width="2.5"/>
+  <ellipse cx="1030" cy="130" rx="35" ry="13" fill="#ffc94d" stroke="#111" stroke-width="2.5"/>
+  <text class="label" x="1082" y="150" style="text-anchor:start">Vector DB</text>
+  <text class="note" x="1082" y="170" style="text-anchor:start">PostgreSQL + pgvector</text>
+  <text class="note" x="1082" y="186" style="text-anchor:start">+ full-text keyword index</text>
+
+  <path class="flow" d="M136 177H168"/>
+  <path class="flow" d="M290 177H318"/>
+  <path class="flow" d="M460 177H488"/>
+  <path class="flow" d="M610 177H640"/>
+  <path class="flow" d="M754 177H788"/>
+  <path class="flow" d="M920 177H993"/>
+
+  <!-- ===== Retrieval loop between the sections ===== -->
+  <path class="flow" d="M250 455V330H1000V222"/>
+  <text class="flow-label" x="270" y="322">search: meaning (vectors) + exact words (keywords)</text>
+  <path class="flow" d="M1060 222V350H402V455"/>
+  <text class="flow-label" x="680" y="368">best matches, fused by reciprocal rank (RRF)</text>
+
+  <!-- LLM provider note -->
+  <rect x="1090" y="304" width="170" height="76" rx="8" fill="#f4f4f8" stroke="#bbb"/>
+  <text class="note" x="1175" y="324" font-weight="600" fill="#333">LLM: Claude Opus 5.5</text>
+  <text class="note" x="1175" y="342">via Anthropic or OpenRouter;</text>
+  <text class="note" x="1175" y="358">off until data protection</text>
+  <text class="note" x="1175" y="374">sign-off</text>
+
+  <!-- ===== Querying ===== -->
+  <rect class="frame" x="20" y="390" width="1240" height="290"/>
+  <text class="section" x="38" y="422">Querying</text>
+
+  <rect class="plain" x="40" y="455" width="140" height="50" rx="8"/>
+  <text class="plain-text" x="110" y="480">Query</text>
+  <text class="note" x="110" y="526">a rubric criterion,</text>
+  <text class="note" x="110" y="542">a claim, or a search</text>
+
+  <rect class="step" x="190" y="458" width="120" height="44" rx="8"/>
+  <text class="step-text" x="250" y="480">Retriever</text>
+  <text class="note" x="250" y="526">hybrid, one finalist</text>
+  <text class="note" x="250" y="542">at a time</text>
+
+  <rect class="step" x="342" y="458" width="120" height="44" rx="8"/>
+  <text class="step-text" x="402" y="480">Reranker</text>
+  <text class="note" x="402" y="526">jina-reranker</text>
+  <text class="note" x="402" y="542">v1-turbo</text>
+
+  <!-- Top passages -->
+  <rect x="490" y="440" width="132" height="90" fill="none" stroke="#333" stroke-width="1.5"/>
+  <rect class="hit" x="508" y="456" width="96" height="44"/>
+  <rect class="hit" x="500" y="466" width="96" height="44"/>
+  <text class="label" x="556" y="550">Top 10 passages</text>
+  <text class="note" x="556" y="566">with file and page</text>
+
+  <rect class="step" x="650" y="458" width="130" height="44" rx="8"/>
+  <text class="step-text" x="715" y="480">Reader</text>
+  <text class="note" x="715" y="526">prompt with numbered</text>
+  <text class="note" x="715" y="542">passages and the rubric</text>
+
+  <rect x="810" y="458" width="100" height="44" rx="8" fill="#1a1aa6" stroke="#0d0d6b" stroke-width="2"/>
+  <text class="step-text" x="860" y="480" font-weight="700">LLM</text>
+  <text class="note" x="860" y="526">structured JSON</text>
+  <text class="note" x="860" y="542">output</text>
+
+  <rect class="plain" x="940" y="455" width="140" height="50" rx="8"/>
+  <text class="plain-text" x="1010" y="480">Response</text>
+  <text class="note" x="1010" y="526">claims or a 1–5 rating,</text>
+  <text class="note" x="1010" y="542">each citing its quotes</text>
+
+  <rect class="step" x="1110" y="458" width="130" height="44" rx="8"/>
+  <text class="step-text" x="1175" y="480">Verification</text>
+  <text class="note" x="1175" y="526">every quote must appear</text>
+  <text class="note" x="1175" y="542">in the cited passage</text>
+
+  <path class="flow" d="M180 480H188"/>
+  <path class="flow" d="M622 480H648"/>
+  <path class="flow" d="M780 480H808"/>
+  <path class="flow" d="M910 480H938"/>
+  <path class="flow" d="M1080 480H1108"/>
+  <path class="flow" d="M462 480H488"/>
+
+  <!-- Human decision -->
+  <path class="flow" d="M1175 552V620H1012"/>
+  <rect class="plain" x="830" y="598" width="180" height="44" rx="8"/>
+  <text class="plain-text" x="920" y="620">Human review</text>
+  <path class="flow" d="M830 620H772"/>
+  <rect class="plain" x="540" y="598" width="230" height="44" rx="8"/>
+  <text class="plain-text" x="655" y="620">Ranking &amp; committee reports</text>
+  <text class="note" x="300" y="616" text-anchor="middle">Reviewers approve or adjust each rating;</text>
+  <text class="note" x="300" y="632" text-anchor="middle">the awards committee makes the final decision.</text>
+</svg>

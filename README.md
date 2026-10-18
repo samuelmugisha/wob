@@ -4,6 +4,24 @@ This system assesses judge-shortlisted finalists using their submitted evidence,
 
 > AI rankings are advisory. The awards committee retains responsibility for final deliberation and winner approval.
 
+## How it works
+
+![RAG pipeline: documents are scanned, extracted, chunked and embedded into PostgreSQL with pgvector; queries use hybrid retrieval and reranking to pick passages that Claude reads, and every cited quote is verified before human review, ranking and reports.](docs/images/rag-pipeline.svg)
+
+**Indexing.** When the coordinator uploads documents:
+1. The background worker scans each file for viruses.
+2. It extracts the text, using OCR for scans.
+3. It splits the text into overlapping chunks of about 700 tokens.
+4. It embeds the chunks locally.
+5. It stores them in PostgreSQL with pgvector, alongside a full-text keyword index.
+
+**Querying.** A query is a rubric criterion, a claim to check, or a search.
+1. Hybrid retrieval searches that finalist's evidence only, by meaning and by exact words.
+2. A reranker picks the 10 best passages.
+3. Claude reads those passages and returns claims or a 1–5 rating, each citing its quotes.
+4. Every quote is checked against the passage it cites.
+5. Reviewers approve or adjust each rating before it counts towards the ranking and reports.
+
 ## Layout (spec §15)
 
 ```
