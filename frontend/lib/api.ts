@@ -496,6 +496,15 @@ export function initials(name: string): string {
   return ((words[0]?.[0] ?? "") + (words.length > 1 ? words[words.length - 1][0] : "")).toUpperCase();
 }
 
+export type Invitation = {
+  user: UserAccount;
+  invite_link: string;
+  expires_in_hours: number;
+  email_enabled: boolean;
+  email_sent: boolean;
+  email_error: string | null;
+};
+
 export type Role = "admin" | "secretariat" | "reviewer" | "judge" | "committee";
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -643,14 +652,14 @@ export const api = {
   mfaEnable: (otp: string) => request<Me>("/auth/mfa/enable", json("POST", { otp })),
   listUsers: () => request<UserAccount[]>("/users"),
   createUser: (email: string, display_name: string, role: Role) =>
-    request<{ user: UserAccount; invite_link: string; expires_in_hours: number }>(
+    request<Invitation>(
       "/users",
       json("POST", { email, display_name, role }),
     ),
   updateUser: (id: string, changes: { role?: Role; is_active?: boolean; display_name?: string }) =>
     request<UserAccount>(`/users/${id}`, json("PATCH", changes)),
   reissueInvite: (id: string) =>
-    request<{ user: UserAccount; invite_link: string; expires_in_hours: number }>(`/users/${id}/invite`, {
+    request<Invitation>(`/users/${id}/invite`, {
       method: "POST",
     }),
   reviewClaim: (claimId: string, input: ReviewInput) =>

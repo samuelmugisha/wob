@@ -1,16 +1,40 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, formatDate, type Role, ROLE_LABELS, type UserAccount } from "@/lib/api";
+import { api, formatDate, type Invitation, type Role, ROLE_LABELS, type UserAccount } from "@/lib/api";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
-function InviteLink({ link, hours, onClose }: { link: string; hours: number; onClose: () => void }) {
+function InviteLink({ invite, onClose }: { invite: Invitation; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [showLink, setShowLink] = useState(!invite.email_sent);
+  const link = invite.invite_link;
+  const hours = invite.expires_in_hours;
   return (
-    <div className="notice success">
-      <strong>Send this set-password link to the person securely.</strong> It works once, expires in{" "}
-      {hours} hours, and won&apos;t be shown again.
+    <div className={`notice ${invite.email_enabled && !invite.email_sent ? "warning" : "success"}`}>
+      {invite.email_sent ? (
+        <>
+          <strong>Email sent to {invite.user.email}</strong> with a link to set their password. It works once
+          and expires in {hours} hours.{" "}
+          {!showLink && (
+            <button type="button" className="link" onClick={() => setShowLink(true)}>
+              Show the link
+            </button>
+          )}
+        </>
+      ) : invite.email_enabled ? (
+        <>
+          <strong>The email to {invite.user.email} could not be sent</strong> ({invite.email_error}). Send them
+          this set-password link securely instead. It works once, expires in {hours} hours, and won&apos;t be shown
+          again.
+        </>
+      ) : (
+        <>
+          <strong>Send this set-password link to the person securely.</strong> It works once, expires in {hours}{" "}
+          hours, and won&apos;t be shown again. (Invitation emails are not set up.)
+        </>
+      )}
+      {showLink && (
       <div className="inline-form">
         <input readOnly value={link} onFocus={(e) => e.target.select()} />
         <button
@@ -23,6 +47,14 @@ function InviteLink({ link, hours, onClose }: { link: string; hours: number; onC
           Done
         </button>
       </div>
+      )}
+      {!showLink && (
+        <div className="inline-form">
+          <button type="button" className="secondary" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -30,7 +62,7 @@ function InviteLink({ link, hours, onClose }: { link: string; hours: number; onC
 export default function UsersPage() {
   const [users, setUsers] = useState<UserAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [invite, setInvite] = useState<{ link: string; hours: number } | null>(null);
+  const [invite, setInvite] = useState<Invitation | null>(null);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("judge");
@@ -53,8 +85,7 @@ export default function UsersPage() {
   async function create(event: React.FormEvent) {
     event.preventDefault();
     await act(async () => {
-      const result = await api.createUser(email.trim(), name.trim(), role);
-      setInvite({ link: result.invite_link, hours: result.expires_in_hours });
+      setInvite(await api.createUser(email.trim(), name.trim(), role));
       setEmail("");
       setName("");
     });
@@ -67,7 +98,7 @@ export default function UsersPage() {
         Invite people, set their role, and remove access. Changing a role or deactivating an account
         signs the person out immediately.
       </p>
-      {invite && <InviteLink link={invite.link} hours={invite.hours} onClose={() => setInvite(null)} />}
+      {invite && <InviteLink key={invite.invite_link} invite={invite} onClose={() => setInvite(null)} />}
       {error && <div className="notice error">{error}</div>}
 
       <form className="card" onSubmit={create}>
@@ -91,7 +122,7 @@ export default function UsersPage() {
               ))}
             </select>
           </div>
-          <button type="submit">Create invitation</button>
+          <button type="submit">Send invitation</button>
         </div>
       </form>
 
@@ -146,8 +177,7 @@ export default function UsersPage() {
                         onClick={() =>
                           act(async () => {
                             if (!window.confirm(`Send ${u.display_name} a new set-password link? Their current password and two-factor setup stop working.`)) return;
-                            const result = await api.reissueInvite(u.id);
-                            setInvite({ link: result.invite_link, hours: result.expires_in_hours });
+                            setInvite(await api.reissueInvite(u.id));
                           })
                         }
                       >

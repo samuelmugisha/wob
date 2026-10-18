@@ -32,6 +32,7 @@ def settings(engine: Engine, tmp_path):  # noqa: ANN001
             "embedding_provider": "fake",
             "reranker_provider": "fake",
             "mfa_required_roles": ["admin", "committee"],  # whatever the local .env says
+            "email_backend": "disabled",
         }
     )
     app.dependency_overrides[get_settings] = lambda: s

@@ -20,7 +20,7 @@ from app.security.auth import (
     AuthenticatedUser,
     request_token,
 )
-from app.services import audit
+from app.services import audit, email
 
 router = APIRouter(prefix="/api/v1", tags=["authentication"])
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -248,11 +248,48 @@ class UserCreateIn(BaseModel):
     role: Role
 
 
+def _invitation_out(
+    session: Session,
+    settings: Settings,
+    user: User,
+    link: str,
+    admin: User,
+    *,
+    reset: bool,
+) -> dict:
+    """Email the link (after commit, so it is valid) and report what happened. The link is also
+    returned so the admin can share it another way if the email doesn't arrive."""
+    sent, error = False, None
+    if email.enabled(settings):
+        try:
+            email.send_invitation(settings, user, link, admin, reset=reset)
+            sent = True
+        except email.EmailError as exc:
+            error = str(exc)
+        audit.record(
+            session,
+            admin,
+            "auth.invite_emailed" if sent else "auth.invite_email_failed",
+            "user",
+            user.id,
+            **({} if sent else {"error": error}),
+        )
+        session.commit()
+    return {
+        "user": _user_out(user),
+        "invite_link": link,
+        "expires_in_hours": settings.invite_ttl_hours,
+        "email_sent": sent,
+        "email_error": error,
+        "email_enabled": email.enabled(settings),
+    }
+
+
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(
     body: UserCreateIn, session: SessionDep, settings: SettingsDep, admin: Admin
 ) -> dict:
-    """Create an account and return its one-time invitation link (shown only now)."""
+    """Create an account, email its one-time invitation link, and return the link too."""
     if session.scalar(select(User).where(func.lower(User.email) == body.email.lower())):
         raise HTTPException(status.HTTP_409_CONFLICT, "a user with this email exists")
     user = User(id=uuid.uuid4(), email=body.email, display_name=body.display_name, role=body.role)
@@ -261,11 +298,7 @@ def create_user(
     audit.record(session, admin, "user.created", "user", user.id, role=body.role.value)
     link = accounts.create_invite(session, user, admin, settings)
     session.commit()
-    return {
-        "user": _user_out(user),
-        "invite_link": link,
-        "expires_in_hours": settings.invite_ttl_hours,
-    }
+    return _invitation_out(session, settings, user, link, admin, reset=False)
 
 
 class UserUpdateIn(BaseModel):
@@ -319,8 +352,4 @@ def reissue_invite(
     accounts.revoke_all_sessions(session, user.id)
     link = accounts.create_invite(session, user, admin, settings)
     session.commit()
-    return {
-        "user": _user_out(user),
-        "invite_link": link,
-        "expires_in_hours": settings.invite_ttl_hours,
-    }
+    return _invitation_out(session, settings, user, link, admin, reset=True)

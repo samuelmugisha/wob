@@ -27,6 +27,19 @@ class Settings(BaseSettings):
     session_idle_minutes: int = Field(default=60, gt=0)
     api_token_ttl_days: int = Field(default=30, gt=0)
     invite_ttl_hours: int = Field(default=72, gt=0)
+
+    # Outgoing email for invitations (app/services/email.py). Off by default: admins then share
+    # the link shown on screen.
+    email_backend: Literal["disabled", "console", "smtp", "memory"] = "disabled"
+    email_from: str | None = None
+    email_from_name: str = "Women on Boards Awards"
+    email_reply_to: str | None = None
+    email_site_name: str = "the Women on Boards Awards evaluation system"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = None
     login_max_failures: int = Field(default=5, gt=0)
     lockout_minutes: int = Field(default=15, gt=0)
     password_min_length: int = Field(default=12, ge=8)

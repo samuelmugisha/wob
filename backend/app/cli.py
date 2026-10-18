@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.db import get_engine
 from app.models import Role, User
 from app.security import accounts
+from app.services import email as email_service
 from app.services import storage
 
 
@@ -33,7 +34,8 @@ def create_user(email: str, name: str, role: Role) -> None:
         session.flush()
         link = accounts.create_invite(session, user, None, settings)
         session.commit()
-    print(f"Created {role.value} user {email}.")
+        print(f"Created {role.value} user {email}.")
+        _email_link(settings, user, link, reset=False)
     print(f"Set-password link (valid {settings.invite_ttl_hours} h, shown once):\n{link}")
 
 
@@ -49,7 +51,19 @@ def invite(email: str) -> None:
         accounts.revoke_all_sessions(session, user.id)
         link = accounts.create_invite(session, user, None, settings)
         session.commit()
+        _email_link(settings, user, link, reset=True)
     print(f"Set-password link for {email} (valid {settings.invite_ttl_hours} h):\n{link}")
+
+
+def _email_link(settings, user: User, link: str, *, reset: bool) -> None:  # noqa: ANN001
+    if not email_service.enabled(settings):
+        print("Email is not configured (EMAIL_BACKEND): send the link below yourself.")
+        return
+    try:
+        email_service.send_invitation(settings, user, link, None, reset=reset)
+        print(f"Emailed the link to {user.email}.")
+    except email_service.EmailError as exc:
+        print(f"Email failed: {exc}. Send the link below yourself.")
 
 
 def generate_file_key(key_id: str) -> None:

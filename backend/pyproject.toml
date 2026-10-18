@@ -43,6 +43,10 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+# Inline-styled HTML email markup.
+"app/services/email.py" = ["E501"]
+
 [project.optional-dependencies]
 # Local embedding model (ONNX). Installed in the worker image; not needed for the API or tests.
 local-embeddings = ["fastembed>=0.5"]

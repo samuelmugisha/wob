@@ -212,6 +212,10 @@ Scores, ranks and ratings come from the immutable snapshot. A rating reviewed af
 ### Authentication (spec §9, §12)
 
 - **Accounts are invitation-only.** An admin creates an account on the *Users* page (or with `make user`), which produces a one-time set-password link valid for 72 hours. *New link* (or `make invite EMAIL=…`) resets a forgotten password: it signs the person out and resets their two-factor setup.
+- **Invitation emails.** When an admin invites someone or issues a new link, the person is emailed a button to set their password. The admin also sees whether the email was sent. If it wasn't, or email isn't set up, the link is shown so it can be shared another way.
+  - Configure it with `EMAIL_BACKEND=smtp` plus the `SMTP_*` and `EMAIL_FROM` settings in `.env.example`.
+  - `EMAIL_BACKEND=console` writes emails to the API log, for local testing.
+  - DigitalOcean blocks SMTP ports 25, 465 and 587, so on a droplet use a provider that accepts port 2525.
 - **Passwords** are hashed with Argon2id and must be at least 12 characters and not based on the email address.
 - **Lockout:** five failed sign-ins lock the account for 15 minutes. Every failure returns the same message, so responses never reveal whether an account exists or is locked.
 - **Two-factor authentication (TOTP)** is available to everyone and required for admin and committee roles (`MFA_REQUIRED_ROLES`). Until it is on, those users can only reach their account page. TOTP secrets are encrypted with a key derived from `SECRET_KEY`.

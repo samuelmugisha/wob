@@ -97,6 +97,7 @@ def client_for(engine: Engine, tmp_path: Path) -> Iterator[ClientFactory]:
             # Test the production defaults whatever the local .env says.
             "mfa_required_roles": ["admin", "committee"],
             "upload_requires_consent": False,
+            "email_backend": "disabled",
         }
     )
     app.dependency_overrides[get_settings] = lambda: settings
