@@ -1,0 +1,57 @@
+[project]
+name = "wob-ai-ranking-backend"
+version = "0.1.0"
+description = "WOB Awards 2026 AI-powered RAG finalists ranking – backend"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14",
+    "anthropic>=1.11.0",
+    "argon2-cffi>=25.1.0",
+    "fastapi>=0.115",
+    "httpx>=0.28.1",
+    "openpyxl>=3.1.5",
+    "pdfplumber>=0.11.10",
+    "pgvector>=0.5.0",
+    "pillow>=12.3.0",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.6",
+    "pydantic[email]>=2.13.5",
+    "pyotp>=2.10.0",
+    "pytesseract>=0.3.13",
+    "python-docx>=1.2.0",
+    "python-multipart>=0.0.20",
+    "reportlab>=5.0.1",
+    "sqlalchemy>=2.0.36",
+    "tiktoken>=0.14.0",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[project.optional-dependencies]
+# Local embedding model (ONNX). Installed in the worker image; not needed for the API or tests.
+local-embeddings = ["fastembed>=0.5"]
+
+[tool.uv]
+# Supply-chain hygiene: ignore releases newer than this date when resolving.
+exclude-newer = "2026-10-04T00:00:00Z"
+# cryptography (via pdfminer) ships no Intel-Mac wheels from 49.0 on; cap it there only so local
+# development on Intel Macs doesn't need a Rust/OpenSSL toolchain. Linux images are unaffected.
+constraint-dependencies = [
+    "cryptography<49; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]

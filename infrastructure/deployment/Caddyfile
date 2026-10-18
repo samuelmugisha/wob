@@ -1,0 +1,19 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	request_body {
+		max_size 130MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+	reverse_proxy web:3000
+}
+
+# Anyone typing the bare IP (or another name) over plain HTTP is sent to the real address.
+http:// {
+	redir https://{$SITE_ADDRESS}{uri} permanent
+}

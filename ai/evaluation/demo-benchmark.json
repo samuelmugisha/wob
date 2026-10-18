@@ -1,0 +1,45 @@
+{
+  "name": "demo (synthetic pipeline documents)",
+  "top_k": 10,
+  "target_recall": 0.9,
+  "cases": [
+    {
+      "id": "audit-chair",
+      "category": "smoke-test",
+      "candidate": "Pipeline Demo Candidate",
+      "query": "Evidence of chairing a board committee",
+      "relevant": [
+        {"document": "nomination.pdf", "quote": "chair of the audit committee"},
+        {"document": "supporting-letter.docx", "quote": "chair of the audit committee"}
+      ]
+    },
+    {
+      "id": "board-chair-appointment",
+      "category": "smoke-test",
+      "candidate": "Pipeline Demo Candidate",
+      "query": "When was she appointed Board Chair?",
+      "relevant": [{"document": "press-cutting.png", "quote": "Board Chair"}]
+    },
+    {
+      "id": "attendance",
+      "category": "smoke-test",
+      "candidate": "Pipeline Demo Candidate",
+      "query": "Board meeting attendance record",
+      "relevant": [{"document": "attendance.xlsx", "quote": "Meeting date"}]
+    },
+    {
+      "id": "directorship-proof",
+      "category": "smoke-test",
+      "candidate": "Pipeline Demo Candidate",
+      "query": "Official proof of directorship",
+      "relevant": [{"document": "certificate-scan.pdf", "quote": "Certificate of Directorship"}]
+    },
+    {
+      "id": "mentoring",
+      "category": "smoke-test",
+      "candidate": "Pipeline Demo Candidate",
+      "query": "Mentoring and developing women directors",
+      "relevant": [{"document": "nomination.pdf", "quote": "mentors women directors"}]
+    }
+  ]
+}

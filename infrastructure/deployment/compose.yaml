@@ -1,0 +1,123 @@
+# Production stack for a single server: Caddy (HTTPS) -> Next.js -> FastAPI, plus the worker,
+# PostgreSQL/pgvector and ClamAV. Only Caddy is reachable from outside (ports 80/443).
+# Secrets come from .env next to this file (see deploy.sh); it never goes in the repository.
+name: wob
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-wob}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-wob}
+  ENVIRONMENT: production
+  STORAGE_DIR: /data/storage
+  FILE_ENCRYPTION_KEYS: ${FILE_ENCRYPTION_KEYS:?set FILE_ENCRYPTION_KEYS}
+  FILE_ENCRYPTION_ACTIVE_KEY: ${FILE_ENCRYPTION_ACTIVE_KEY:-}
+  MODEL_CACHE_DIR: /models
+  EMBEDDING_PROVIDER: local
+  EMBEDDING_MODEL: nomic-ai/nomic-embed-text-v1.5
+  EMBEDDING_DIM: ${EMBEDDING_DIM:-768}
+  RERANKER_PROVIDER: local
+  RERANKER_MODEL: jinaai/jina-reranker-v1-turbo-en
+  LLM_PROVIDER: ${LLM_PROVIDER:-disabled}
+  EXTERNAL_AI_PROCESSING_APPROVED: ${EXTERNAL_AI_PROCESSING_APPROVED:-false}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-opus-5.5}
+  RESEARCH_ENABLED: ${RESEARCH_ENABLED:-false}
+  UPLOAD_REQUIRES_CONSENT: ${UPLOAD_REQUIRES_CONSENT:-false}
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.0-pg17
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wob}
+      POSTGRES_USER: ${POSTGRES_USER:-wob}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ../../backend
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      <<: *backend-env
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      PUBLIC_BASE_URL: https://${SITE_ADDRESS:?set SITE_ADDRESS}
+      COOKIE_SECURE: "true"
+      MFA_REQUIRED_ROLES: '${MFA_REQUIRED_ROLES:-["admin","committee"]}'
+    volumes:
+      - /srv/wob/storage:/data/storage
+      - models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: ../../backend
+    restart: unless-stopped
+    logging: *logging
+    command: ["python", "-m", "app.workers.main"]
+    environment:
+      <<: *backend-env
+      SCANNER: clamav
+      CLAMD_HOST: clamav
+    volumes:
+      - /srv/wob/storage:/data/storage:ro
+      - models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  clamav:
+    image: clamav/clamav:1.4.6
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      CLAMD_CONF_StreamMaxLength: 60M
+      CLAMD_CONF_MaxFileSize: 60M
+      CLAMD_CONF_MaxScanSize: 200M
+    volumes:
+      - clamav-db:/var/lib/clamav
+
+  web:
+    build:
+      context: ../../frontend
+      args:
+        API_URL: http://api:8000
+    restart: unless-stopped
+    logging: *logging
+    depends_on: [api]
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [web]
+
+volumes:
+  pgdata:
+  models:
+  clamav-db:
+  caddy-data:
+  caddy-config:
