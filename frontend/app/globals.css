@@ -485,3 +485,9 @@ td > .badge:first-child { margin-left: 0; }
 /* The banner must not clip the user menu: only its decorative art is clipped. */
 .banner { overflow: visible; z-index: 10; }
 .banner-art { overflow: hidden; }
+
+/* Stacked sign-in forms: fields keep their natural height instead of growing. */
+.auth-card .field { flex: none; }
+.auth-card p { margin: 0; }
+.auth-card h1 + p { margin-top: -4px; margin-bottom: 4px; }
+.auth-card button[type="submit"] { margin-top: 6px; padding: 10px 14px; }
