@@ -197,7 +197,7 @@ def test_tool_loop_resumes_paused_turns_and_collects_pages() -> None:
     assert tools["web_search"]["type"] == "web_search_20250305"
     assert tools["web_fetch"]["type"] == "web_fetch_20250910"
     assert "linkedin.com" in tools["web_search"]["blocked_domains"]
-    assert tools["web_search"]["user_location"] == {"type": "approximate", "country": "UG"}
+    assert "user_location" not in tools["web_search"]  # UG is not a supported country
     assert first["output_config"]["format"]["type"] == "json_schema"
     assert first["fallbacks"] == "default"
     # The paused turn is resent as-is, with no extra user message.

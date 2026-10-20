@@ -109,7 +109,9 @@ class Settings(BaseSettings):
     research_max_searches: int = Field(default=15, gt=0)
     research_max_fetches: int = Field(default=20, gt=0)
     research_max_continuations: int = Field(default=8, gt=0)
-    research_country: str = "UG"
+    # Optional ISO country hint for web search results. Unset by default: the search tool
+    # rejects countries it doesn't support, including UG.
+    research_country: str | None = None
     # User-generated and social platforms are not credible sources for verification (spec §6).
     research_blocked_domains: list[str] = [
         "facebook.com",

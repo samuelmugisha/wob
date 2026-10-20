@@ -82,14 +82,16 @@ class AnthropicResearchLLM:
 
     def _tools(self) -> list[dict[str, Any]]:
         s = self._settings
+        search: dict[str, Any] = {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": s.research_max_searches,
+            "blocked_domains": s.research_blocked_domains,
+        }
+        if s.research_country:
+            search["user_location"] = {"type": "approximate", "country": s.research_country}
         return [
-            {
-                "type": "web_search_20250305",
-                "name": "web_search",
-                "max_uses": s.research_max_searches,
-                "blocked_domains": s.research_blocked_domains,
-                "user_location": {"type": "approximate", "country": s.research_country},
-            },
+            search,
             {
                 "type": "web_fetch_20250910",
                 "name": "web_fetch",
