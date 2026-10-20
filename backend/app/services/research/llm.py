@@ -74,10 +74,17 @@ class AnthropicResearchLLM:
     the raw page text needed to verify each quote would not come back in the response."""
 
     def __init__(self, settings: Settings, client: anthropic.Anthropic | None = None) -> None:
+        settings = research_settings(settings)
         self.model_id = f"{settings.llm_provider}:{settings.llm_model}"
         self._settings = settings
         self._client = client or hosted_client(settings)
         self._options = request_options(settings)
+        if settings.llm_provider == "anthropic":
+            if not supports_server_fallback(settings.llm_model):
+                self._options = {}
+            # Cache the growing prefix, so pages already fetched cost cache-read rates when a
+            # paused turn is resumed.
+            self._options = {**self._options, "cache_control": {"type": "ephemeral"}}
         self._format = {"type": "json_schema", "schema": anthropic.transform_schema(ResearchOutput)}
 
     def _tools(self) -> list[dict[str, Any]]:
@@ -97,7 +104,7 @@ class AnthropicResearchLLM:
                 "name": "web_fetch",
                 "max_uses": s.research_max_fetches,
                 "blocked_domains": s.research_blocked_domains,
-                "max_content_tokens": 40000,
+                "max_content_tokens": s.research_max_fetch_tokens,
             },
         ]
 
@@ -117,7 +124,7 @@ class AnthropicResearchLLM:
                     messages=messages,
                     tools=self._tools(),
                     thinking={"type": "adaptive"},
-                    output_config={"effort": s.claim_effort, "format": self._format},
+                    output_config={"effort": s.research_effort, "format": self._format},
                     **self._options,
                 ) as stream:
                     message = stream.get_final_message()
@@ -178,11 +185,22 @@ class ScriptedResearchLLM:
         return result
 
 
+def supports_server_fallback(model: str) -> bool:
+    """Claude Haiku models have no server-side refusal fallback; sending one is rejected."""
+    return not model.startswith("claude-haiku")
+
+
 def research_settings(settings: Settings) -> Settings:
-    """The settings research runs with: LLM_PROVIDER, unless RESEARCH_PROVIDER overrides it."""
-    if settings.research_provider and settings.llm_provider in ("anthropic", "openrouter"):
-        return settings.model_copy(update={"llm_provider": settings.research_provider})
-    return settings
+    """The settings research runs with: LLM_PROVIDER unless RESEARCH_PROVIDER overrides it,
+    and RESEARCH_MODEL on the Claude API."""
+    if settings.llm_provider not in ("anthropic", "openrouter"):
+        return settings
+    return settings.model_copy(
+        update={
+            "llm_provider": settings.research_provider or settings.llm_provider,
+            "claim_model": settings.research_model,
+        }
+    )
 
 
 def get_research_llm(settings: Settings) -> ResearchLLM:

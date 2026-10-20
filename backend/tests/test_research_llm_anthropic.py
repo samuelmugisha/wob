@@ -200,7 +200,13 @@ def test_tool_loop_resumes_paused_turns_and_collects_pages() -> None:
     assert "linkedin.com" in tools["web_search"]["blocked_domains"]
     assert "user_location" not in tools["web_search"]  # UG is not a supported country
     assert first["output_config"]["format"]["type"] == "json_schema"
-    assert first["fallbacks"] == "default"
+    # Research runs on the cheaper research model and effort, with shorter page text.
+    assert first["model"] == "claude-haiku-5-5"
+    assert first["output_config"]["effort"] == "medium"
+    assert tools["web_fetch"]["max_content_tokens"] == 10_000
+    assert (tools["web_search"]["max_uses"], tools["web_fetch"]["max_uses"]) == (10, 10)
+    assert first["cache_control"] == {"type": "ephemeral"}
+    assert "fallbacks" not in first  # Haiku has no server-side refusal fallback
     # The paused turn is resent as-is, with no extra user message.
     assert [m["role"] for m in second["messages"]] == ["user", "assistant"]
     assert second["messages"][1]["content"][0]["type"] == "server_tool_use"
@@ -229,7 +235,13 @@ def test_research_can_use_anthropic_while_the_rest_uses_openrouter() -> None:
     assert status["enabled"] is False
     assert status["reason"] == "RESEARCH_PROVIDER=anthropic needs ANTHROPIC_API_KEY"
 
-    llm = get_research_llm(base.model_copy(update={"anthropic_api_key": SecretStr("sk-test")}))
-    assert llm.model_id == "anthropic:claude-opus-5-5"
+    keyed = base.model_copy(update={"anthropic_api_key": SecretStr("sk-test")})
+    llm = get_research_llm(keyed)
+    assert llm.model_id == "anthropic:claude-haiku-5-5"
     assert "openrouter" not in str(llm._client.base_url)
-    assert "fallbacks" in llm._options  # Anthropic's options, not OpenRouter's routing
+    assert "extra_body" not in llm._options  # no OpenRouter routing
+    assert research_status(keyed)["model"] == "claude-haiku-5-5"
+
+    # A model with server-side refusal fallback keeps it.
+    opus = get_research_llm(keyed.model_copy(update={"research_model": "claude-opus-5-5"}))
+    assert opus._options["fallbacks"] == "default"

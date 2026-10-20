@@ -109,9 +109,16 @@ class Settings(BaseSettings):
     # accept web_fetch results sent back after a paused turn, so research fails there; set
     # RESEARCH_PROVIDER=anthropic with ANTHROPIC_API_KEY. Unset means LLM_PROVIDER.
     research_provider: Literal["anthropic", "openrouter"] | None = None
+    # Research reads many web pages, so it runs on a cheaper model and effort than claims and
+    # assessment. Quotes are still checked against the fetched pages and reviewers accept each
+    # finding, so a weaker model costs rejected findings, not wrong evidence.
+    research_model: str = "claude-haiku-5-5"
+    research_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
     research_max_claims: int = Field(default=25, gt=0)
-    research_max_searches: int = Field(default=15, gt=0)
-    research_max_fetches: int = Field(default=20, gt=0)
+    research_max_searches: int = Field(default=10, gt=0)
+    research_max_fetches: int = Field(default=10, gt=0)
+    # Page text kept per fetch. Fetched pages make up most of a run's cost.
+    research_max_fetch_tokens: int = Field(default=10_000, gt=0)
     research_max_continuations: int = Field(default=8, gt=0)
     # Optional ISO country hint for web search results. Unset by default: the search tool
     # rejects countries it doesn't support, including UG.
