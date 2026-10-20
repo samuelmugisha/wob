@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -52,21 +52,32 @@ def build_input(
             f"P{i}", label.replace('"', "'"), p.content, chunk_id=p.chunk_id
         )
 
+    # Accepted public sources: those backing a current claim, and those found for a criterion.
+    # Every criterion sees all of them, as with passages a source may bear on several.
+    on_current_claim = (
+        select(ClaimEvidence.external_source_id)
+        .join(Claim, Claim.id == ClaimEvidence.claim_id)
+        .where(Claim.superseded_at.is_(None), ClaimEvidence.external_source_id.is_not(None))
+    )
     sources = session.scalars(
         select(ExternalSource)
-        .join(ClaimEvidence, ClaimEvidence.external_source_id == ExternalSource.id)
-        .join(Claim, Claim.id == ClaimEvidence.claim_id)
         .where(
             ExternalSource.finalist_category_id == finalist_category_id,
             ExternalSource.reviewer_outcome == ReviewOutcome.ACCEPTED,
-            Claim.superseded_at.is_(None),
+            or_(
+                ExternalSource.id.in_(on_current_claim),
+                ExternalSource.criterion_code.is_not(None),
+            ),
         )
-        .distinct()
-        .order_by(ExternalSource.created_at)
+        .order_by(ExternalSource.created_at, ExternalSource.id)
     ).all()
     for i, s in enumerate(sources, start=1):
-        label = f"{s.publisher}, {s.url}".replace('"', "'")
-        evidence[f"S{i}"] = Evidence(f"S{i}", label, s.evidence_passage, external_source_id=s.id)
+        label = f"{s.publisher}, {s.url}"
+        if s.criterion_name:
+            label += f" (found for criterion: {s.criterion_name})"
+        evidence[f"S{i}"] = Evidence(
+            f"S{i}", label.replace('"', "'"), s.evidence_passage, external_source_id=s.id
+        )
 
     claims = [
         (c.wording, c.status.value, c.claim_type or "other")

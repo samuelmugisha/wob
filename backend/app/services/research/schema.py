@@ -37,9 +37,34 @@ class NotFound(BaseModel):
     note: str = Field(description="What was searched; never a judgement about the claim")
 
 
+class CriterionFinding(BaseModel):
+    criterion_ref: str = Field(description="The award criterion this source bears on, e.g. K2")
+    url: str = Field(description="URL of a page you fetched with web_fetch")
+    publisher: str = Field(description="Organisation that published the page")
+    title: str | None
+    published_date: str | None = Field(
+        description="Publication date as YYYY, YYYY-MM or YYYY-MM-DD if the page shows it"
+    )
+    source_type: SourceType
+    quote: str = Field(description="Text copied exactly from the fetched page")
+    identity_confidence: Literal["high", "medium", "low"] = Field(
+        description="How certain it is that the page is about this nominee, not a namesake"
+    )
+    identity_notes: str = Field(description="What links the page to the nominee")
+
+
+class CriterionNotFound(BaseModel):
+    criterion_ref: str
+    note: str = Field(description="What was searched; never a judgement about the nominee")
+
+
 class ResearchOutput(BaseModel):
     findings: list[Finding]
     not_found: list[NotFound]
+    criterion_findings: list[CriterionFinding] = Field(
+        default_factory=list, description="Public evidence for the award criteria (K#)"
+    )
+    criteria_not_found: list[CriterionNotFound] = Field(default_factory=list)
     identity_concerns: list[str] = Field(
         description="Namesakes or ambiguities a reviewer should know about"
     )

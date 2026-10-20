@@ -126,6 +126,7 @@ def build_export(
         {
             "publisher": s.publisher,
             "url": s.url,
+            "criterion": s.criterion_name,
             "quote": s.quote,
             "outcome": s.reviewer_outcome.value,
             "retrieved_at": _iso(s.retrieved_at),

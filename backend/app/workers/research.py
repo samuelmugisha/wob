@@ -26,6 +26,7 @@ from app.services import audit, consent
 from app.services.claims.llm import ExtractionLLMError
 from app.services.research.llm import ResearchLLM
 from app.services.research.research import verify_findings
+from app.services.rubrics import current_rubric
 
 log = logging.getLogger("wob.research")
 
@@ -108,19 +109,31 @@ class ResearchPipeline:
             finalist = session.get_one(Finalist, fc.finalist_id)
             category = session.get_one(AwardCategory, fc.category_id).name
             claims = research_claims(session, fc.id, self.settings.research_max_claims)
+            rubric = current_rubric(session, fc.category_id)
+            criteria = list(rubric.criteria) if rubric else []
             research_consent = consent.has(session, fc.id, consent.Purpose.WEB_RESEARCH)
             refs = {f"C{i}": c.id for i, c in enumerate(claims, start=1)}
+            criterion_refs = {f"K{i}": (c.code, c.name) for i, c in enumerate(criteria, start=1)}
             prompt = user_prompt(
                 finalist.full_name,
                 finalist.organisation,
                 category,
                 [(f"C{i}", c.wording) for i, c in enumerate(claims, start=1)],
+                [
+                    (f"K{i}", c.name, c.description, c.evidence_expectations)
+                    for i, c in enumerate(criteria, start=1)
+                ],
+                position=finalist.position_title,
             )
         if not research_consent:
             self._fail(run_id, consent.MESSAGES[consent.Purpose.WEB_RESEARCH], retry=False)
             return
-        if not claims:
-            self._fail(run_id, "this candidate has no current claims to research", retry=False)
+        if not claims and not criteria:
+            self._fail(
+                run_id,
+                "this candidate has no current claims and the category has no rubric to research",
+                retry=False,
+            )
             return
         try:
             result = self.llm.research(SYSTEM_PROMPT, prompt)
@@ -133,7 +146,7 @@ class ResearchPipeline:
             self._fail(run_id, f"{type(exc).__name__}: {exc}", retry=True)
             return
 
-        outcome = verify_findings(result, refs)
+        outcome = verify_findings(result, refs, criterion_refs)
         now = datetime.now(UTC)
         with self.sessions() as session:
             run = session.get_one(ResearchRun, run_id, with_for_update=True)
@@ -155,7 +168,9 @@ class ResearchPipeline:
                         finalist_category_id=fc.id,
                         research_run_id=run_id,
                         claim_id=f.claim_id,
-                        relation=EvidenceRelation(f.relation),
+                        criterion_code=f.criterion[0] if f.criterion else None,
+                        criterion_name=f.criterion[1] if f.criterion else None,
+                        relation=EvidenceRelation(f.relation) if f.relation else None,
                         publisher=f.publisher,
                         url=f.url,
                         title=f.title,
@@ -174,6 +189,7 @@ class ResearchPipeline:
             run.error = None
             run.next_attempt_at = None
             run.claim_ids = list(refs.values())
+            run.criterion_codes = [code for code, _ in criterion_refs.values()]
             run.served_by_models = result.served_by
             run.usage = result.usage
             run.searches = result.searches

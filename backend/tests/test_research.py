@@ -10,13 +10,21 @@ from sqlalchemy import Engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.config import get_settings
+from app.services.assessment.schema import Citation, CriterionRating
 from app.services.claims.llm import ExtractionRefused
 from app.services.research.llm import FetchedPage, ResearchResult, ScriptedResearchLLM
 from app.services.research.research import canonical_url, passage_around
-from app.services.research.schema import Finding, NotFound, ResearchOutput
+from app.services.research.schema import (
+    CriterionFinding,
+    CriterionNotFound,
+    Finding,
+    NotFound,
+    ResearchOutput,
+)
 from app.workers.research import ResearchPipeline
 from tests import fixture_files
 from tests.conftest import drain
+from tests.test_assessment import assessment_pipeline
 from tests.test_claims import claims_pipeline
 from tests.test_knowledge_base import make_candidate, make_category, upload
 from tests.test_verification import AUDIT, CV, JOINED, LETTER, MENTOR, claims_by_statement, review
@@ -309,13 +317,112 @@ def test_research_is_gated(client_for, world) -> None:
     assert reviewer.get(f"{world['base']}/research").json()["research"]["enabled"] is False
 
 
-def test_research_needs_claims(client_for, coordinator) -> None:
+def test_research_needs_claims_or_a_rubric(client_for, coordinator) -> None:
     category = make_category(coordinator)
     candidate = make_candidate(coordinator, category["id"])
     response = client_for("reviewer").post(
         f"/api/v1/categories/{category['id']}/finalists/{candidate['id']}/research"
     )
     assert response.status_code == 409
+    assert "create a rubric" in response.json()["detail"]
+
+
+CRITERION_LINE = re.compile(r"^(K\d+): ([^.]+)\.", re.M)
+
+
+def criterion_respond(system: str, user: str) -> ResearchResult:
+    refs = {name: ref for ref, name in CRITERION_LINE.findall(user)}
+    first, second = list(refs.values())[:2]
+    found = dict(
+        url=COMPANY_PAGE.url,
+        publisher="Example Holdings plc",
+        title=None,
+        published_date=None,
+        source_type="organisation_website",
+        quote="has chaired the Audit Committee of Example Holdings since 2019",
+        identity_confidence="high",
+        identity_notes="Names her as a director of Example Holdings, her organisation.",
+    )
+    return ResearchResult(
+        output=ResearchOutput(
+            findings=[],
+            not_found=[],
+            criterion_findings=[
+                CriterionFinding(criterion_ref=first, **found),
+                CriterionFinding(criterion_ref="K99", **found),
+                CriterionFinding(**{**found, "criterion_ref": first, "quote": "chairs the board"}),
+            ],
+            criteria_not_found=[CriterionNotFound(criterion_ref=second, note="Searched news.")],
+            identity_concerns=[],
+        ),
+        pages=[COMPANY_PAGE],
+        searches=3,
+    )
+
+
+def test_candidate_without_documents_is_researched_by_criterion(
+    client_for, coordinator, engine
+) -> None:
+    category = make_category(coordinator)
+    jane = make_candidate(coordinator, category["id"], "Jane Doe")
+    rubric = coordinator.post(
+        f"/api/v1/categories/{category['id']}/rubrics", json={"use_template": True}
+    ).json()
+    criteria = rubric["criteria"]
+    base = f"/api/v1/categories/{category['id']}/finalists/{jane['id']}"
+    reviewer = client_for("reviewer")
+
+    assert reviewer.post(f"{base}/research").status_code == 202
+    pipeline, llm = research_pipeline(engine, criterion_respond)
+    assert pipeline.run_once()
+    body = reviewer.get(f"{base}/research").json()
+
+    run = body["latest_run"]
+    assert run["status"] == "succeeded", run["error"]
+    assert run["criterion_codes"] == [c["code"] for c in criteria]
+    assert sorted(d["reason"] for d in run["discarded"]) == [
+        "quote not found in the fetched page",
+        "unknown criterion reference 'K99'",
+    ]
+    assert run["not_found"] == [{"criterion_code": criteria[1]["code"], "note": "Searched news."}]
+    system, user = llm.calls[0]
+    assert "None: no claims have been extracted" in user
+    assert f"K1: {criteria[0]['name']}." in user
+    assert "absence online says nothing against" in system
+
+    [finding] = body["findings"]
+    assert finding["claim_id"] is None and finding["relation"] is None
+    assert (finding["criterion_code"], finding["criterion_name"]) == (
+        criteria[0]["code"],
+        criteria[0]["name"],
+    )
+    url = f"/api/v1/external-sources/{finding['id']}/review"
+    accepted = reviewer.post(url, json={"outcome": "accepted", "credibility": "high"})
+    assert accepted.status_code == 200, accepted.text
+
+    # The accepted source is public evidence for AI assessment.
+    def cite_public_source(system: str, user: str) -> CriterionRating:
+        match = re.search(r'<public_source id="(S\d+)" source="([^"]*)">', user)
+        assert match and "found for criterion" in match.group(2)
+        return CriterionRating(
+            rating=3,
+            rationale="Chairs an audit committee.",
+            supporting=[Citation(ref=match.group(1), quote="chaired the Audit Committee")],
+            contradicting=[],
+            limitations=None,
+            sufficiency="limited",
+            review_required=False,
+            review_reasons=[],
+        )
+
+    assert (
+        coordinator.post("/api/v1/assessments", json={"category_id": category["id"]}).status_code
+        == 202
+    )
+    assessment_pipeline(engine, cite_public_source)[0].run_once()
+    items = coordinator.get(f"{base}/assessments").json()["items"]
+    assert len(items) == len(criteria)
+    assert all("uncited_rating" not in i["flags"] for i in items)
 
 
 def test_url_and_passage_helpers() -> None:

@@ -33,6 +33,7 @@ function SourceReview({ source, onDone }: { source: PublicSource; onDone: () => 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const needsIdentity = source.identity_confidence !== "high";
+  const stale = source.claim_id !== null && !source.claim_current;
 
   async function decide(outcome: "accepted" | "rejected") {
     setBusy(true);
@@ -86,7 +87,7 @@ function SourceReview({ source, onDone }: { source: PublicSource; onDone: () => 
       <div className="inline-form">
         <button
           onClick={() => decide("accepted")}
-          disabled={busy || !credibility || (needsIdentity && !identityConfirmed) || !source.claim_current}
+          disabled={busy || !credibility || (needsIdentity && !identityConfirmed) || stale}
         >
           Accept as evidence
         </button>
@@ -94,7 +95,7 @@ function SourceReview({ source, onDone }: { source: PublicSource; onDone: () => 
           Reject
         </button>
       </div>
-      {!source.claim_current && (
+      {stale && (
         <div className="muted small">The claim was re-extracted since; run research again.</div>
       )}
       {error && <div className="notice error">{error}</div>}
@@ -106,12 +107,18 @@ function SourceCard({ source, canReview, onChanged }: { source: PublicSource; ca
   return (
     <article className="claim">
       <div className="claim-head">
-        <span>
-          <span className={`badge${source.relation === "contradicts" ? " danger" : " success"}`}>
-            {source.relation === "contradicts" ? "Contradicts" : "Supports"}
-          </span>{" "}
-          {source.claim_statement}
-        </span>
+        {source.criterion_name ? (
+          <span>
+            <span className="badge">Criterion</span> {source.criterion_name}
+          </span>
+        ) : (
+          <span>
+            <span className={`badge${source.relation === "contradicts" ? " danger" : " success"}`}>
+              {source.relation === "contradicts" ? "Contradicts" : "Supports"}
+            </span>{" "}
+            {source.claim_statement}
+          </span>
+        )}
         {source.reviewer_outcome !== "pending" && (
           <span className={`badge${source.reviewer_outcome === "accepted" ? " success" : " muted"}`}>
             {source.reviewer_outcome === "accepted" ? "Accepted" : "Rejected"}
@@ -153,7 +160,8 @@ function SourceCard({ source, canReview, onChanged }: { source: PublicSource; ca
   );
 }
 
-/** Credible public sources found for the candidate's claims (FR-13), for reviewers to accept. */
+/** Credible public sources found for the candidate's claims and for each award criterion (FR-13),
+ * for reviewers to accept. */
 export default function ResearchPanel({ categoryId, finalistId }: { categoryId: string; finalistId: string }) {
   const [data, setData] = useState<ResearchResponse | null>(null);
   const [me, setMe] = useState<Me | null>(null);
@@ -194,6 +202,8 @@ export default function ResearchPanel({ categoryId, finalistId }: { categoryId: 
   const canReview = me?.permissions.review_claims ?? false;
   const pending = data.findings.filter((f) => f.reviewer_outcome === "pending");
   const reviewed = data.findings.filter((f) => f.reviewer_outcome !== "pending");
+  const notFoundClaims = run?.not_found.filter((n) => n.claim_id).length ?? 0;
+  const notFoundCriteria = run?.not_found.filter((n) => n.criterion_code).length ?? 0;
 
   return (
     <section className="card">
@@ -207,8 +217,10 @@ export default function ResearchPanel({ categoryId, finalistId }: { categoryId: 
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>
         Credible public sources (registries, regulators, organisation sites, annual reports, news)
-        that confirm or contradict the claims. Each quote was checked against the page as fetched.
-        Nothing counts as evidence until a reviewer accepts it.
+        that confirm or contradict the claims, plus public evidence for each criterion of the
+        category&apos;s rubric, so candidates without uploaded documents can be researched too. Each
+        quote was checked against the page as fetched. Nothing counts as evidence until a reviewer
+        accepts it; accepted sources are used in AI assessment.
       </p>
       {!data.research.enabled && (
         <div className="notice warning">External research is off: {data.research.reason}</div>
@@ -249,9 +261,18 @@ export default function ResearchPanel({ categoryId, finalistId }: { categoryId: 
 
       {run?.status === "succeeded" && run.not_found.length > 0 && (
         <div className="notice">
-          <strong>No public trace found for {run.not_found.length} claim(s).</strong> This is
-          neutral: board work is often confidential, and absence online does not count against a
-          nominee.
+          <strong>
+            No public trace found for{" "}
+            {[
+              notFoundClaims && `${notFoundClaims} claim${notFoundClaims === 1 ? "" : "s"}`,
+              notFoundCriteria && `${notFoundCriteria} criteri${notFoundCriteria === 1 ? "on" : "a"}`,
+            ]
+              .filter(Boolean)
+              .join(" and ")}
+            .
+          </strong>{" "}
+          This is neutral: board work is often confidential, and absence online does not count
+          against a nominee.
         </div>
       )}
       {run?.status === "succeeded" && run.discarded.length > 0 && (

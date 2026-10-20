@@ -247,7 +247,8 @@ def review_external_source(
     identity_confirmed: bool = False,
     notes: str | None = None,
 ) -> None:
-    """Accept a public-web finding as evidence for its claim, or reject it (spec §6)."""
+    """Accept a public-web finding as evidence for its claim or criterion, or reject it
+    (spec §6)."""
     notes = (notes or "").strip() or None
     if source.reviewer_outcome != ReviewOutcome.PENDING:
         raise SourceReviewRejected(
@@ -259,9 +260,9 @@ def review_external_source(
         raise SourceReviewRejected("choose accepted or rejected")
     if outcome == ReviewOutcome.REJECTED and not notes:
         raise SourceReviewRejected("notes are required to reject a finding")
+    claim = session.get(Claim, source.claim_id) if source.claim_id else None
     if outcome == ReviewOutcome.ACCEPTED:
-        claim = session.get(Claim, source.claim_id)
-        if claim is None or claim.superseded_at is not None:
+        if source.claim_id and (claim is None or claim.superseded_at is not None):
             raise SourceReviewRejected(
                 "the claim this finding concerns was replaced by a later extraction; "
                 "research again",
@@ -273,15 +274,16 @@ def review_external_source(
             raise SourceReviewRejected(
                 "the page may be about a namesake: confirm it concerns this nominee"
             )
-        session.add(
-            ClaimEvidence(
-                claim_id=claim.id,
-                finalist_category_id=source.finalist_category_id,
-                external_source_id=source.id,
-                relation=source.relation,
-                quoted_span=source.quote or source.evidence_passage,
+        if claim is not None:  # criterion findings feed assessment directly (assess.py)
+            session.add(
+                ClaimEvidence(
+                    claim_id=claim.id,
+                    finalist_category_id=source.finalist_category_id,
+                    external_source_id=source.id,
+                    relation=source.relation,
+                    quoted_span=source.quote or source.evidence_passage,
+                )
             )
-        )
     source.reviewer_outcome = outcome
     source.credibility = credibility
     source.identity_confirmed = identity_confirmed or source.identity_confirmed
@@ -294,7 +296,8 @@ def review_external_source(
         f"external_source.{outcome.value}",
         "external_source",
         source.id,
-        claim_id=str(source.claim_id),
+        claim_id=str(source.claim_id) if source.claim_id else None,
+        criterion_code=source.criterion_code,
         url=source.url,
         credibility=credibility.value if credibility else None,
         notes=notes,

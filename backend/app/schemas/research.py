@@ -15,6 +15,7 @@ class ResearchRunOut(BaseModel):
     llm_model: str
     served_by_models: list[str]
     prompt_version: str
+    criterion_codes: list[str]
     searches: int
     pages_fetched: int
     findings_created: int
@@ -34,6 +35,8 @@ class SourceOut(BaseModel):
     claim_id: uuid.UUID | None
     claim_statement: str | None
     claim_current: bool
+    criterion_code: str | None
+    criterion_name: str | None
     relation: EvidenceRelation | None
     publisher: str
     url: str

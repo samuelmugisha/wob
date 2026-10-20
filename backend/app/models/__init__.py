@@ -419,6 +419,7 @@ class ResearchRun(Base):
     served_by_models: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     prompt_version: Mapped[str]
     claim_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)), default=list)
+    criterion_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     usage: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     searches: Mapped[int] = mapped_column(default=0)
     pages_fetched: Mapped[int] = mapped_column(default=0)
@@ -436,7 +437,8 @@ class ResearchRun(Base):
 
 
 class ExternalSource(Base):
-    """A public-web finding about one claim, pending a reviewer's acceptance."""
+    """A public-web finding about one claim or one award criterion, pending a reviewer's
+    acceptance."""
 
     __tablename__ = "external_sources"
 
@@ -444,6 +446,8 @@ class ExternalSource(Base):
     finalist_category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("finalist_categories.id"))
     research_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("research_runs.id"))
     claim_id: Mapped[uuid.UUID | None]
+    criterion_code: Mapped[str | None]
+    criterion_name: Mapped[str | None]
     relation: Mapped[EvidenceRelation | None] = mapped_column(
         _pg_enum(EvidenceRelation, "evidence_relation")
     )

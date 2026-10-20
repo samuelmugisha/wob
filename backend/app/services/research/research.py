@@ -13,6 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 from app.services.citations import PUNCTUATION, normalise
 from app.services.claims.extraction import parse_period
 from app.services.research.llm import FetchedPage, ResearchResult
+from app.services.research.schema import CriterionFinding, Finding
 
 CONTEXT_CHARS = 280
 
@@ -49,8 +50,8 @@ def passage_around(text: str, quote: str) -> str | None:
 
 @dataclass
 class VerifiedFinding:
-    claim_id: uuid.UUID
-    relation: str
+    claim_id: uuid.UUID | None
+    relation: str | None
     url: str
     publisher: str
     title: str | None
@@ -62,6 +63,7 @@ class VerifiedFinding:
     retrieved_at: datetime
     identity_confidence: str
     identity_notes: str
+    criterion: tuple[str, str] | None = None  # (code, name) for a criterion finding
 
 
 @dataclass
@@ -72,49 +74,59 @@ class ResearchOutcome:
     discarded: list[dict[str, Any]] = field(default_factory=list)
 
 
-def verify_findings(result: ResearchResult, claim_refs: dict[str, uuid.UUID]) -> ResearchOutcome:
+def _check(
+    finding: Finding | CriterionFinding, page: FetchedPage | None
+) -> tuple[str | None, str | None]:
+    """(passage, None) when the quote is on the fetched page, else (None, reason)."""
+    if urlsplit(finding.url).scheme not in ("http", "https"):
+        return None, "not a web URL"
+    if page is None:
+        return None, "the page was not fetched during research, so the quote can't be checked"
+    if not normalise(finding.quote):
+        return None, "empty quote"
+    passage = passage_around(page.text, finding.quote)
+    if passage is None:
+        return None, "quote not found in the fetched page"
+    return passage, None
+
+
+def verify_findings(
+    result: ResearchResult,
+    claim_refs: dict[str, uuid.UUID],
+    criterion_refs: dict[str, tuple[str, str]] | None = None,
+) -> ResearchOutcome:
+    """claim_refs: C# -> claim id; criterion_refs: K# -> (criterion code, criterion name)."""
+    criterion_refs = criterion_refs or {}
     pages: dict[str, FetchedPage] = {canonical_url(p.url): p for p in result.pages}
     outcome = ResearchOutcome(identity_concerns=[c for c in result.output.identity_concerns if c])
     seen: set[tuple] = set()
 
-    for finding in result.output.findings:
-        claim_id = claim_refs.get(finding.claim_ref.strip().upper())
+    def keep(
+        finding: Finding | CriterionFinding,
+        ref: str,
+        kind: str,
+        subject: Any,
+        relation: str | None,
+    ) -> None:
         page = pages.get(canonical_url(finding.url))
-        reason = None
-        passage = None
-        if claim_id is None:
-            reason = f"unknown claim reference {finding.claim_ref!r}"
-        elif urlsplit(finding.url).scheme not in ("http", "https"):
-            reason = "not a web URL"
-        elif page is None:
-            reason = "the page was not fetched during research, so the quote can't be checked"
-        elif not normalise(finding.quote):
-            reason = "empty quote"
+        if subject is None:
+            passage, reason = None, f"unknown {kind} reference {ref!r}"
         else:
-            passage = passage_around(page.text, finding.quote)
-            if passage is None:
-                reason = "quote not found in the fetched page"
+            passage, reason = _check(finding, page)
         if reason:
             outcome.discarded.append(
-                {
-                    "claim_ref": finding.claim_ref,
-                    "url": finding.url,
-                    "quote": finding.quote,
-                    "reason": reason,
-                }
+                {"ref": ref, "url": finding.url, "quote": finding.quote, "reason": reason}
             )
-            continue
-
-        key = (claim_id, canonical_url(finding.url), finding.relation, normalise(finding.quote))
+            return
+        key = (subject, canonical_url(finding.url), relation, normalise(finding.quote))
         if key in seen:
-            continue
+            return
         seen.add(key)
         published, _ = parse_period(finding.published_date)
-        retrieved = _parse_time(page.retrieved_at)
         outcome.findings.append(
             VerifiedFinding(
-                claim_id=claim_id,
-                relation=finding.relation,
+                claim_id=subject if isinstance(subject, uuid.UUID) else None,
+                relation=relation,
                 url=finding.url.strip(),
                 publisher=finding.publisher.strip() or urlsplit(finding.url).netloc,
                 title=finding.title or page.title,
@@ -123,17 +135,29 @@ def verify_findings(result: ResearchResult, claim_refs: dict[str, uuid.UUID]) ->
                 quote=finding.quote.strip(),
                 passage=passage,
                 content_sha256=hashlib.sha256(page.text.encode()).hexdigest(),
-                retrieved_at=retrieved,
+                retrieved_at=_parse_time(page.retrieved_at),
                 identity_confidence=finding.identity_confidence,
                 identity_notes=finding.identity_notes.strip(),
+                criterion=subject if isinstance(subject, tuple) else None,
             )
         )
+
+    for finding in result.output.findings:
+        ref = finding.claim_ref.strip().upper()
+        keep(finding, ref, "claim", claim_refs.get(ref), finding.relation)
+    for finding in result.output.criterion_findings:
+        ref = finding.criterion_ref.strip().upper()
+        keep(finding, ref, "criterion", criterion_refs.get(ref), None)
 
     for item in result.output.not_found:
         if item.claim_ref.strip().upper() in claim_refs:
             outcome.not_found.append(
                 {"claim_id": str(claim_refs[item.claim_ref.strip().upper()]), "note": item.note}
             )
+    for item in result.output.criteria_not_found:
+        criterion = criterion_refs.get(item.criterion_ref.strip().upper())
+        if criterion:
+            outcome.not_found.append({"criterion_code": criterion[0], "note": item.note})
     return outcome
 
 

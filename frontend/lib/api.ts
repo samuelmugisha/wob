@@ -211,9 +211,10 @@ export type ResearchRun = {
   searches: number;
   pages_fetched: number;
   findings_created: number;
-  not_found: { claim_id: string; note: string }[];
+  criterion_codes: string[];
+  not_found: { claim_id?: string; criterion_code?: string; note: string }[];
   identity_concerns: string[];
-  discarded: { claim_ref: string; url: string; quote: string; reason: string }[];
+  discarded: { ref?: string; claim_ref?: string; url: string; quote: string; reason: string }[];
   error: string | null;
   next_attempt_at: string | null;
   created_at: string;
@@ -227,6 +228,8 @@ export type PublicSource = {
   claim_id: string | null;
   claim_statement: string | null;
   claim_current: boolean;
+  criterion_code: string | null;
+  criterion_name: string | null;
   relation: "supports" | "contradicts" | null;
   publisher: string;
   url: string;

@@ -16,6 +16,7 @@ from app.schemas.research import ResearchOut, ResearchRunOut, SourceOut, SourceR
 from app.security.auth import CurrentUser
 from app.services import audit, consent
 from app.services.research.llm import research_status
+from app.services.rubrics import current_rubric
 from app.services.verification import ReviewRejected, review_external_source
 from app.workers.research import new_research_run
 
@@ -31,6 +32,8 @@ def _source_out(session: Session, source: ExternalSource) -> SourceOut:
         claim_id=source.claim_id,
         claim_statement=claim.wording if claim else None,
         claim_current=bool(claim and claim.superseded_at is None),
+        criterion_code=source.criterion_code,
+        criterion_name=source.criterion_name,
         relation=source.relation,
         publisher=source.publisher,
         url=source.url,
@@ -100,7 +103,8 @@ def start_research(
     settings: SettingsDep,
     user: Reviewer,
 ) -> ResearchRunOut:
-    """Queue a search of credible public sources for the candidate's current claims."""
+    """Queue a search of credible public sources for the candidate's current claims and for each
+    criterion of the category's rubric."""
     fc = _get_finalist_category(session, category_id, finalist_id)
     state = research_status(settings)
     if not state["enabled"]:
@@ -114,9 +118,11 @@ def start_research(
             Claim.finalist_category_id == fc.id, Claim.superseded_at.is_(None)
         )
     )
-    if not claims:
+    if not claims and current_rubric(session, fc.category_id) is None:
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "extract claims first: research checks existing claims"
+            status.HTTP_409_CONFLICT,
+            "nothing to research: extract claims, or create a rubric so research can look for "
+            "public evidence on each criterion",
         )
     model = settings.llm_model
     run = new_research_run(session, fc.id, model, user.id)
@@ -145,7 +151,7 @@ def get_research_run(run_id: uuid.UUID, session: SessionDep, _: CurrentUser) -> 
 def review_source(
     source_id: uuid.UUID, body: SourceReviewIn, session: SessionDep, user: Reviewer
 ) -> SourceOut:
-    """Accept a finding as evidence for its claim, or reject it."""
+    """Accept a finding as evidence for its claim or criterion, or reject it."""
     source = session.get(ExternalSource, source_id, with_for_update=True)
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "finding not found")
