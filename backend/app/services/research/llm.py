@@ -178,12 +178,25 @@ class ScriptedResearchLLM:
         return result
 
 
+def research_settings(settings: Settings) -> Settings:
+    """The settings research runs with: LLM_PROVIDER, unless RESEARCH_PROVIDER overrides it."""
+    if settings.research_provider and settings.llm_provider in ("anthropic", "openrouter"):
+        return settings.model_copy(update={"llm_provider": settings.research_provider})
+    return settings
+
+
 def get_research_llm(settings: Settings) -> ResearchLLM:
     if not settings.research_enabled:
         raise AIProcessingNotApproved("external research is disabled (RESEARCH_ENABLED=false)")
     get_claim_llm(settings)  # same provider and approval checks as claim extraction
+    settings = research_settings(settings)
     if settings.llm_provider not in ("anthropic", "openrouter"):
         raise AIProcessingNotApproved("external research needs a hosted LLM provider")
+    key = settings.anthropic_api_key
+    if settings.research_provider == "anthropic" and not (key and key.get_secret_value()):
+        raise AIProcessingNotApproved("RESEARCH_PROVIDER=anthropic needs ANTHROPIC_API_KEY")
+    if settings.llm_provider == "openrouter" and not settings.openrouter_api_key:
+        raise AIProcessingNotApproved("research through OpenRouter needs OPENROUTER_API_KEY")
     return AnthropicResearchLLM(settings)
 
 
@@ -194,4 +207,4 @@ def research_status(settings: Settings) -> dict[str, Any]:
         get_research_llm(settings)
     except AIProcessingNotApproved as exc:
         return {"enabled": False, "reason": str(exc)}
-    return {"enabled": True, "reason": None, "model": settings.llm_model}
+    return {"enabled": True, "reason": None, "model": research_settings(settings).llm_model}

@@ -24,6 +24,7 @@ x-backend-env: &backend-env
   CLAIM_MODEL: ${CLAIM_MODEL:-claude-opus-5-5}
   # External research (FR-13): web searches about nominees. Needs the approval above too.
   RESEARCH_ENABLED: ${RESEARCH_ENABLED:-false}
+  RESEARCH_PROVIDER: ${RESEARCH_PROVIDER:-}
   UPLOAD_REQUIRES_CONSENT: ${UPLOAD_REQUIRES_CONSENT:-false}
 
 services:

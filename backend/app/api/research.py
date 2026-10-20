@@ -15,7 +15,7 @@ from app.models import Claim, ExternalSource, ResearchRun, ReviewOutcome, User
 from app.schemas.research import ResearchOut, ResearchRunOut, SourceOut, SourceReviewIn
 from app.security.auth import CurrentUser
 from app.services import audit, consent
-from app.services.research.llm import research_status
+from app.services.research.llm import research_settings, research_status
 from app.services.rubrics import current_rubric
 from app.services.verification import ReviewRejected, review_external_source
 from app.workers.research import new_research_run
@@ -124,7 +124,7 @@ def start_research(
             "nothing to research: extract claims, or create a rubric so research can look for "
             "public evidence on each criterion",
         )
-    model = settings.llm_model
+    model = research_settings(settings).llm_model
     run = new_research_run(session, fc.id, model, user.id)
     audit.record(
         session, user, "research.requested", "research_run", run.id, finalist_category_id=str(fc.id)

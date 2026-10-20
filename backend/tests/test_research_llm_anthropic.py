@@ -5,9 +5,10 @@ import json
 
 import anthropic
 import httpx2
+from pydantic import SecretStr
 
 from app.config import get_settings
-from app.services.research.llm import AnthropicResearchLLM
+from app.services.research.llm import AnthropicResearchLLM, get_research_llm, research_status
 from tests import fixture_files
 
 OUTPUT = {"findings": [], "not_found": [], "identity_concerns": []}
@@ -212,3 +213,23 @@ def test_tool_loop_resumes_paused_turns_and_collects_pages() -> None:
     assert result.pages[0].text == "Jane Doe chairs the Audit Committee."
     assert "Nomination statement" in result.pages[1].text  # PDF text extracted locally
     assert result.usage == {"input_tokens": 1000, "output_tokens": 400}
+
+
+def test_research_can_use_anthropic_while_the_rest_uses_openrouter() -> None:
+    base = get_settings().model_copy(
+        update={
+            "llm_provider": "openrouter",
+            "openrouter_api_key": SecretStr("or-key"),
+            "external_ai_processing_approved": True,
+            "research_enabled": True,
+            "research_provider": "anthropic",
+        }
+    )
+    status = research_status(base)
+    assert status["enabled"] is False
+    assert status["reason"] == "RESEARCH_PROVIDER=anthropic needs ANTHROPIC_API_KEY"
+
+    llm = get_research_llm(base.model_copy(update={"anthropic_api_key": SecretStr("sk-test")}))
+    assert llm.model_id == "anthropic:claude-opus-5-5"
+    assert "openrouter" not in str(llm._client.base_url)
+    assert "fallbacks" in llm._options  # Anthropic's options, not OpenRouter's routing

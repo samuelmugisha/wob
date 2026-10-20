@@ -234,6 +234,7 @@ Through OpenRouter:
 - Requests are pinned to Anthropic as the serving provider, with no fallback to Bedrock, Vertex or Azure, and only to providers that don't collect data.
 - Claude's server-side refusal fallback isn't available, so a refused request fails and can be retried.
 - OpenRouter becomes an additional processor: name it in the finalist notice (part B) before processing real nominations.
+- External research doesn't work through OpenRouter: it rejects Claude's web-fetch results when a paused research turn is sent back. Set `RESEARCH_PROVIDER=anthropic` with an `ANTHROPIC_API_KEY` so research calls Anthropic directly while claims and assessment stay on OpenRouter.
 
 ### Data protection controls (Uganda DPPA 2019)
 

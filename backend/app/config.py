@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -105,6 +105,10 @@ class Settings(BaseSettings):
     # External research (FR-13): web search about the nominee via Claude's server-side tools.
     # Needs the same approval as claim extraction, plus its own switch.
     research_enabled: bool = False
+    # Research can call a different provider than claims and assessment. OpenRouter doesn't
+    # accept web_fetch results sent back after a paused turn, so research fails there; set
+    # RESEARCH_PROVIDER=anthropic with ANTHROPIC_API_KEY. Unset means LLM_PROVIDER.
+    research_provider: Literal["anthropic", "openrouter"] | None = None
     research_max_claims: int = Field(default=25, gt=0)
     research_max_searches: int = Field(default=15, gt=0)
     research_max_fetches: int = Field(default=20, gt=0)
@@ -112,6 +116,12 @@ class Settings(BaseSettings):
     # Optional ISO country hint for web search results. Unset by default: the search tool
     # rejects countries it doesn't support, including UG.
     research_country: str | None = None
+
+    @field_validator("research_provider", "research_country", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
+
     # User-generated and social platforms are not credible sources for verification (spec §6).
     research_blocked_domains: list[str] = [
         "facebook.com",
