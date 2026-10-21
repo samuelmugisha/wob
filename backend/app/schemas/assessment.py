@@ -23,6 +23,10 @@ class RubricIn(BaseModel):
     notes: str | None = Field(default=None, max_length=4000)
 
 
+class UnfreezeIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=4000)
+
+
 class CriterionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

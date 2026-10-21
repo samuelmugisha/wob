@@ -210,6 +210,7 @@ def test_only_reviewers_and_coordinators_can_review(client_for, coordinator, wor
         "manage_evidence": False,
         "review_claims": False,
         "approve_rubrics": False,
+        "administer_rubrics": False,
         "generate_reports": False,
         "manage_users": False,
     }

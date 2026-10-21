@@ -5,8 +5,8 @@ import { api, type CriterionInput, type Me, type Rubric } from "@/lib/api";
 
 const STATUS_TEXT: Record<Rubric["status"], string> = {
   draft: "Draft: editable; rankings are practice only",
-  approved: "Approved by the committee; freeze it to use for production ranking",
-  frozen: "Frozen: production rubric, cannot be changed",
+  approved: "Approved; freeze it to use for production ranking. Only an administrator can amend it",
+  frozen: "Frozen: production rubric. Only an administrator can unfreeze it",
 };
 
 function slug(text: string): string {
@@ -119,7 +119,7 @@ function RubricEditor({ rubric, onSaved, onCancel }: { rubric: Rubric; onSaved: 
           Add criterion
         </button>
         <button type="submit" disabled={busy || rows.length === 0}>
-          {busy ? "Saving…" : "Save draft"}
+          {busy ? "Saving…" : rubric.status === "approved" ? "Save amendment" : "Save draft"}
         </button>
         <button type="button" className="secondary" onClick={onCancel}>
           Cancel
@@ -146,6 +146,20 @@ export default function RubricPanel({
   const [error, setError] = useState<string | null>(null);
   const canEdit = me?.permissions.manage_evidence ?? false;
   const canApprove = me?.permissions.approve_rubrics ?? false;
+  const canAdminister = me?.permissions.administer_rubrics ?? false;
+
+  function unfreeze(rubricId: string) {
+    const reason = window.prompt(
+      "Unfreeze this rubric? It returns to approved so an administrator can amend it, and new " +
+        "rankings are practice rankings until it is frozen again. Reason (recorded in the audit log):",
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      setError("Give a reason for unfreezing the rubric.");
+      return;
+    }
+    act(() => api.unfreezeRubric(rubricId, reason.trim()));
+  }
 
   async function act(action: () => Promise<unknown>, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
@@ -180,6 +194,16 @@ export default function RubricPanel({
               }
             >
               Approve
+            </button>
+          )}
+          {canAdminister && rubric?.status === "approved" && !editing && (
+            <button className="secondary" onClick={() => setEditing(true)}>
+              Amend rubric
+            </button>
+          )}
+          {canAdminister && rubric?.status === "frozen" && (
+            <button className="secondary" onClick={() => unfreeze(rubric.id)}>
+              Unfreeze
             </button>
           )}
           {canApprove && rubric?.status === "approved" && (

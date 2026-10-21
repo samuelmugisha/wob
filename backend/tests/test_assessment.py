@@ -152,9 +152,10 @@ def test_rubric_lifecycle_and_permissions(client_for, coordinator, world) -> Non
     )
     assert committee.post(f"/api/v1/rubrics/{rubric_id}/freeze").status_code == 409
     assert committee.post(f"/api/v1/rubrics/{rubric_id}/approve").json()["status"] == "approved"
+    # Approved: only an administrator may amend it.
     assert (
         coordinator.put(f"/api/v1/rubrics/{rubric_id}", json={"criteria": criteria}).status_code
-        == 409
+        == 403
     )
     frozen = committee.post(f"/api/v1/rubrics/{rubric_id}/freeze").json()
     assert frozen["status"] == "frozen" and frozen["frozen_at"]
@@ -166,6 +167,77 @@ def test_rubric_lifecycle_and_permissions(client_for, coordinator, world) -> Non
     # Assessments use the latest frozen rubric, not a newer draft.
     rankings = coordinator.get(f"/api/v1/categories/{world['category']['id']}/rankings").json()
     assert rankings["rubric"]["id"] == rubric_id
+
+
+def _approve_and_freeze(client_for, world) -> tuple[str, TestClient]:
+    rubric_id = world["rubric"]["id"]
+    committee = client_for("committee")
+    assert committee.post(f"/api/v1/rubrics/{rubric_id}/approve").status_code == 200
+    assert committee.post(f"/api/v1/rubrics/{rubric_id}/freeze").status_code == 200
+    return rubric_id, committee
+
+
+def test_only_an_admin_unfreezes_and_amends_a_rubric(client_for, coordinator, world, engine):
+    rubric_id, committee = _approve_and_freeze(client_for, world)
+    admin = client_for("admin")
+    url = f"/api/v1/rubrics/{rubric_id}"
+    criteria = [
+        {k: c[k] for k in ("code", "name", "description", "evidence_expectations")}
+        for c in world["rubric"]["criteria"]
+    ]
+    criteria[0]["name"] = "Board leadership"
+
+    assert admin.put(url, json={"criteria": criteria}).status_code == 409  # unfreeze first
+    for client in (coordinator, committee):
+        assert client.post(f"{url}/unfreeze", json={"reason": "typo"}).status_code == 403
+    assert admin.post(f"{url}/unfreeze", json={"reason": " "}).status_code == 422
+    unfrozen = admin.post(f"{url}/unfreeze", json={"reason": "Fix a criterion name."})
+    assert unfrozen.status_code == 200, unfrozen.text
+    assert unfrozen.json()["status"] == "approved" and unfrozen.json()["frozen_at"] is None
+
+    # Approved: only an administrator may amend it, and it stays approved.
+    assert coordinator.put(url, json={"criteria": criteria}).status_code == 403
+    assert committee.put(url, json={"criteria": criteria}).status_code == 403
+    amended = admin.put(url, json={"criteria": criteria})
+    assert amended.status_code == 200, amended.text
+    body = amended.json()
+    assert body["status"] == "approved"
+    assert body["criteria"][0]["name"] == "Board leadership"
+    assert [c["id"] for c in body["criteria"]] == [c["id"] for c in world["rubric"]["criteria"]]
+
+    with engine.connect() as conn:
+        actions = list(
+            conn.scalars(
+                text("SELECT action FROM audit_events WHERE entity_id = :r ORDER BY occurred_at"),
+                {"r": rubric_id},
+            )
+        )
+    assert actions[-2:] == ["rubric.unfrozen", "rubric.amended"]
+    assert committee.post(f"{url}/freeze").json()["status"] == "frozen"
+
+
+def test_amending_keeps_ratings_and_refuses_to_drop_rated_criteria(
+    client_for, coordinator, world, engine
+) -> None:
+    assess(coordinator, world, engine)
+    before = items_for(coordinator, world, "Jane Doe")
+    rubric_id, _ = _approve_and_freeze(client_for, world)
+    admin = client_for("admin")
+    url = f"/api/v1/rubrics/{rubric_id}"
+    admin.post(f"{url}/unfreeze", json={"reason": "Clarify wording."})
+    criteria = [
+        {k: c[k] for k in ("code", "name", "description", "evidence_expectations")}
+        for c in world["rubric"]["criteria"]
+    ]
+
+    dropped = admin.put(url, json={"criteria": criteria[1:]})
+    assert dropped.status_code == 409 and "already rated" in dropped.json()["detail"]
+
+    criteria.reverse()
+    criteria[0]["description"] = "Reworded."
+    assert admin.put(url, json={"criteria": criteria}).status_code == 200
+    after = items_for(coordinator, world, "Jane Doe")
+    assert {k: v["rating"] for k, v in after.items()} == {k: v["rating"] for k, v in before.items()}
 
 
 def test_each_pair_is_assessed_independently_with_verified_citations(

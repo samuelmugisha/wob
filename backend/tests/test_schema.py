@@ -252,6 +252,22 @@ def test_rubric_lifecycle(conn: Connection, world) -> None:
         conn, "UPDATE rubric_versions SET notes = 'x' WHERE id = :r", "is frozen", r=rubric
     )
 
+    # Only an administrator's request (wob.rubric_admin) may unfreeze, and only to approved.
+    unfreeze = "UPDATE rubric_versions SET status = 'approved', frozen_at = NULL WHERE id = :r"
+    assert_rejected(conn, unfreeze, "is frozen", r=rubric)
+    conn.execute(text("SET LOCAL wob.rubric_admin = 'on'"))
+    assert_rejected(
+        conn,
+        "UPDATE rubric_versions SET status = 'draft', approved_by = NULL, approved_at = NULL, "
+        "frozen_at = NULL WHERE id = :r",
+        "is frozen",
+        r=rubric,
+    )
+    conn.execute(text(unfreeze), {"r": rubric})
+    conn.execute(text(add_criterion), {"r": rubric, "code": "extra", "w": 1, "pos": 2})
+    conn.execute(text("SET LOCAL wob.rubric_admin = 'off'"))
+    assert_rejected(conn, add_criterion, "cannot change", r=rubric, code="more", w=1, pos=3)
+
 
 def test_document_original_is_immutable(conn: Connection, world) -> None:
     assert_rejected(

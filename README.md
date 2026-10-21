@@ -157,6 +157,8 @@ Reviewers, coordinators and admins record a decision on each claim (`POST /api/v
 
 **Rubrics.** Each category has versioned rubrics, managed on the category page. Coordinators create and edit drafts; *Start from draft template* gives five illustrative criteria, labelled as such. The committee or an admin approves and then freezes a rubric. A frozen rubric can't be changed (database-enforced), and assessments use the latest frozen version, or the latest draft until one exists.
 
+**Administrator changes.** Only an admin can unfreeze a rubric (back to approved, with a reason recorded in the audit log) or amend an approved one. An amendment stays approved under the admin's name, and the audit log records the criteria before and after. Criteria are updated in place by code, so ratings already made stay linked to them; a criterion that has ratings can be reworded but not removed. Rankings keep the rubric status they were calculated under, so earlier production rankings stay production. The database allows these changes only when the application sets `wob.rubric_admin` for the transaction.
+
 **Assessment.** `POST /api/v1/assessments` queues a run for a category. For every finalist and criterion, the worker:
 1. retrieves that finalist's top passages for the criterion through hybrid search;
 2. adds the finalist's claims with their verification status, and any accepted public sources;

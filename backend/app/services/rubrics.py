@@ -1,15 +1,25 @@
-"""Versioned rubrics (spec §7): drafts are editable; approved and frozen ones are not (the
-database enforces this too). Production rankings need a frozen rubric."""
+"""Versioned rubrics (spec §7): drafts are editable; approved and frozen ones are not, except
+that an administrator may amend an approved rubric and unfreeze a frozen one (the database
+enforces this too). Production rankings need a frozen rubric."""
 
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.models import RubricCriterion, RubricStatus, RubricVersion, User, WeightingMode
+from app.models import (
+    CalibrationItem,
+    CriterionAssessment,
+    Role,
+    RubricCriterion,
+    RubricStatus,
+    RubricVersion,
+    User,
+    WeightingMode,
+)
 from app.services import audit
 
 TEMPLATE_NOTE = (
@@ -61,9 +71,10 @@ DRAFT_TEMPLATE: list[dict[str, Any]] = [
 
 
 class RubricError(ValueError):
-    def __init__(self, message: str, *, conflict: bool = False) -> None:
+    def __init__(self, message: str, *, conflict: bool = False, forbidden: bool = False) -> None:
         super().__init__(message)
         self.conflict = conflict
+        self.forbidden = forbidden
 
 
 def _criteria(rubric: RubricVersion, items: list[dict[str, Any]]) -> list[RubricCriterion]:
@@ -120,7 +131,77 @@ def create_draft(
     return rubric
 
 
-def update_draft(
+def _admin_change(session: Session) -> None:
+    """Let this transaction past the database guards on non-draft rubrics (migration 0013)."""
+    session.execute(text("SET LOCAL wob.rubric_admin = 'on'"))
+
+
+def _criterion_dump(c: RubricCriterion) -> dict[str, Any]:
+    return {
+        "code": c.code,
+        "name": c.name,
+        "description": c.description,
+        "evidence_expectations": c.evidence_expectations,
+        "weight": str(c.weight) if c.weight is not None else None,
+    }
+
+
+def _rated(session: Session, criterion_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Criteria that assessments or calibration studies already refer to."""
+    if not criterion_ids:
+        return set()
+    return set(
+        session.scalars(
+            select(CriterionAssessment.criterion_id).where(
+                CriterionAssessment.criterion_id.in_(criterion_ids)
+            )
+        )
+    ) | set(
+        session.scalars(
+            select(CalibrationItem.criterion_id).where(
+                CalibrationItem.criterion_id.in_(criterion_ids)
+            )
+        )
+    )
+
+
+def _sync_criteria(session: Session, rubric: RubricVersion, items: list[dict[str, Any]]) -> None:
+    """Update criteria in place by code, so ratings already made keep pointing at them. A
+    criterion that has ratings can be reworded but not removed."""
+    wanted = _criteria(rubric, items)  # validates codes
+    existing = {c.code: c for c in rubric.criteria}
+    keep = {c.code for c in wanted}
+    removed = [c for code, c in existing.items() if code not in keep]
+    blocked = _rated(session, [c.id for c in removed])
+    if blocked:
+        names = ", ".join(sorted(c.name for c in removed if c.id in blocked))
+        raise RubricError(
+            f"criteria already rated can't be removed ({names}); reword them, or create a new "
+            "rubric version",
+            conflict=True,
+        )
+    for c in removed:
+        session.delete(c)
+    # Move kept criteria out of the way first: positions are unique within a rubric.
+    for c in existing.values():
+        if c.code in keep:
+            c.position += 1000
+    session.flush()
+    for new in wanted:
+        old = existing.get(new.code)
+        if old is None:
+            session.add(new)
+            continue
+        old.name = new.name
+        old.description = new.description
+        old.evidence_expectations = new.evidence_expectations
+        old.weight = new.weight
+        old.position = new.position
+    session.flush()
+    session.expire(rubric, ["criteria"])
+
+
+def update_rubric(
     session: Session,
     rubric: RubricVersion,
     user: User,
@@ -129,37 +210,68 @@ def update_draft(
     weighting: WeightingMode,
     notes: str | None,
 ) -> None:
-    if rubric.status != RubricStatus.DRAFT:
+    """Edit a draft; administrators may also amend an approved rubric. An amendment stays
+    approved under the administrator's name, with the before and after recorded in the audit
+    log. Frozen rubrics must be unfrozen first."""
+    if rubric.status == RubricStatus.FROZEN:
         raise RubricError(
-            f"rubric version {rubric.version} is {rubric.status.value}; "
-            "create a new version to change it",
+            f"rubric version {rubric.version} is frozen; an administrator must unfreeze it "
+            "before it can be changed",
             conflict=True,
         )
-    session.execute(delete(RubricCriterion).where(RubricCriterion.rubric_version_id == rubric.id))
-    session.flush()
+    amending = rubric.status == RubricStatus.APPROVED
+    if amending and user.role != Role.ADMIN:
+        raise RubricError(
+            f"rubric version {rubric.version} is approved; only an administrator can amend it",
+            forbidden=True,
+        )
+    if amending:
+        _admin_change(session)
+    before = [_criterion_dump(c) for c in rubric.criteria]
+    before_weighting = rubric.weighting.value
+    _sync_criteria(session, rubric, criteria)
     rubric.weighting = weighting
     rubric.notes = notes
-    session.add_all(_criteria(rubric, criteria))
-    audit.record(
-        session,
-        user,
-        "rubric.updated",
-        "rubric_version",
-        rubric.id,
-        criteria=[c["code"] for c in criteria],
-        weighting=weighting.value,
-    )
+    if amending:
+        check_weights(rubric)
+        rubric.approved_by = user.id
+        rubric.approved_at = datetime.now(UTC)
+        audit.record(
+            session,
+            user,
+            "rubric.amended",
+            "rubric_version",
+            rubric.id,
+            before={"weighting": before_weighting, "criteria": before},
+            after={
+                "weighting": weighting.value,
+                "criteria": [_criterion_dump(c) for c in rubric.criteria],
+            },
+        )
+    else:
+        audit.record(
+            session,
+            user,
+            "rubric.updated",
+            "rubric_version",
+            rubric.id,
+            criteria=[c["code"] for c in criteria],
+            weighting=weighting.value,
+        )
     session.flush()
-    session.expire(rubric, ["criteria"])
+
+
+def check_weights(rubric: RubricVersion) -> None:
+    if rubric.weighting == WeightingMode.WEIGHTED and any(
+        c.weight is None for c in rubric.criteria
+    ):
+        raise RubricError("every criterion needs a weight for weighted scoring")
 
 
 def approve(session: Session, rubric: RubricVersion, user: User) -> None:
     if rubric.status != RubricStatus.DRAFT:
         raise RubricError(f"rubric is already {rubric.status.value}", conflict=True)
-    if rubric.weighting == WeightingMode.WEIGHTED and any(
-        c.weight is None for c in rubric.criteria
-    ):
-        raise RubricError("every criterion needs a weight for weighted scoring")
+    check_weights(rubric)
     rubric.status = RubricStatus.APPROVED
     rubric.approved_by = user.id
     rubric.approved_at = datetime.now(UTC)
@@ -172,6 +284,22 @@ def freeze(session: Session, rubric: RubricVersion, user: User) -> None:
     rubric.status = RubricStatus.FROZEN
     rubric.frozen_at = datetime.now(UTC)
     audit.record(session, user, "rubric.frozen", "rubric_version", rubric.id)
+
+
+def unfreeze(session: Session, rubric: RubricVersion, user: User, reason: str) -> None:
+    """Administrators only: return a frozen rubric to approved so it can be amended. Rankings
+    already calculated keep the status they were taken under."""
+    if user.role != Role.ADMIN:
+        raise RubricError("only an administrator can unfreeze a rubric", forbidden=True)
+    if rubric.status != RubricStatus.FROZEN:
+        raise RubricError(f"rubric is {rubric.status.value}, not frozen", conflict=True)
+    reason = reason.strip()
+    if not reason:
+        raise RubricError("give a reason for unfreezing the rubric")
+    _admin_change(session)
+    rubric.status = RubricStatus.APPROVED
+    rubric.frozen_at = None
+    audit.record(session, user, "rubric.unfrozen", "rubric_version", rubric.id, reason=reason)
 
 
 def current_rubric(session: Session, category_id: uuid.UUID) -> RubricVersion | None:

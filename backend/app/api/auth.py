@@ -51,6 +51,7 @@ def me_payload(user: User, settings: Settings) -> dict:
             "manage_evidence": user.role in COORDINATOR_ROLES,
             "review_claims": user.role in REVIEWER_ROLES,
             "approve_rubrics": user.role in (Role.ADMIN, Role.COMMITTEE),
+            "administer_rubrics": user.role == Role.ADMIN,  # amend approved, unfreeze frozen
             "generate_reports": user.role in (Role.ADMIN, Role.SECRETARIAT, Role.COMMITTEE),
             "manage_users": user.role == Role.ADMIN,
         },

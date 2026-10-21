@@ -165,6 +165,7 @@ export type Me = {
     manage_evidence: boolean;
     review_claims: boolean;
     approve_rubrics: boolean;
+    administer_rubrics: boolean;
     generate_reports: boolean;
     manage_users: boolean;
   };
@@ -696,6 +697,8 @@ export const api = {
     request<Rubric>(`/rubrics/${rubricId}/approve`, { method: "POST" }),
   freezeRubric: (rubricId: string) =>
     request<Rubric>(`/rubrics/${rubricId}/freeze`, { method: "POST" }),
+  unfreezeRubric: (rubricId: string, reason: string) =>
+    request<Rubric>(`/rubrics/${rubricId}/unfreeze`, json("POST", { reason })),
   categoryRankings: (categoryId: string) =>
     request<CategoryRankings>(`/categories/${categoryId}/rankings`),
   startAssessment: (categoryId: string) =>

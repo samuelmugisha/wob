@@ -44,8 +44,9 @@ from app.schemas.assessment import (
     RankingOut,
     RubricIn,
     RubricOut,
+    UnfreezeIn,
 )
-from app.security.auth import Coordinator, CurrentUser, require_roles
+from app.security.auth import Admin, Coordinator, CurrentUser, require_roles
 from app.services import audit, rubrics
 from app.services.assessment.review import AssessmentReviewRejected, review_assessment
 from app.services.calibration import is_blinded, latest_result
@@ -69,6 +70,8 @@ CLOSE_MARGIN = Decimal("0.25")
 
 
 def _http(exc: Exception) -> HTTPException:
+    if getattr(exc, "forbidden", False):
+        return HTTPException(status.HTTP_403_FORBIDDEN, str(exc))
     conflict = getattr(exc, "conflict", False)
     code = status.HTTP_409_CONFLICT if conflict else status.HTTP_422_UNPROCESSABLE_CONTENT
     return HTTPException(code, str(exc))
@@ -120,9 +123,10 @@ def _get_rubric(session: Session, rubric_id: uuid.UUID) -> RubricVersion:
 def update_rubric(
     rubric_id: uuid.UUID, body: RubricIn, session: SessionDep, user: Coordinator
 ) -> RubricOut:
+    """Edit a draft rubric, or (administrators only) amend an approved one."""
     rubric = _get_rubric(session, rubric_id)
     try:
-        rubrics.update_draft(
+        rubrics.update_rubric(
             session,
             rubric,
             user,
@@ -153,6 +157,20 @@ def freeze_rubric(rubric_id: uuid.UUID, session: SessionDep, user: RubricApprove
     rubric = _get_rubric(session, rubric_id)
     try:
         rubrics.freeze(session, rubric, user)
+    except rubrics.RubricError as exc:
+        raise _http(exc) from exc
+    session.commit()
+    return RubricOut.model_validate(rubric)
+
+
+@router.post("/rubrics/{rubric_id}/unfreeze")
+def unfreeze_rubric(
+    rubric_id: uuid.UUID, body: UnfreezeIn, session: SessionDep, user: Admin
+) -> RubricOut:
+    """Administrators only: return a frozen rubric to approved so it can be amended."""
+    rubric = _get_rubric(session, rubric_id)
+    try:
+        rubrics.unfreeze(session, rubric, user, body.reason)
     except rubrics.RubricError as exc:
         raise _http(exc) from exc
     session.commit()
