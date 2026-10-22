@@ -3,6 +3,7 @@
 python -m app.cli create-user EMAIL "Display Name" ROLE   # prints a set-password link
 python -m app.cli invite EMAIL                            # new link (signs the user out)
 python -m app.cli auto-accept-research                    # auto-accept earlier research findings
+python -m app.cli match-research-claims                   # link them to the claims they support
 """
 
 import argparse
@@ -152,6 +153,40 @@ def auto_accept_research() -> None:
     print(f"Accepted {accepted} finding(s) automatically; the rest still await review.")
 
 
+def match_research_claims() -> None:
+    """Link auto-accepted criterion sources not yet matched to the claims they support, one
+    candidate at a time. Needs claim extraction to be enabled."""
+    from app.models import ExternalSource, ReviewOutcome
+    from app.services.claims.llm import get_claim_llm
+    from app.services.research.matching import AnthropicClaimMatcher, match_criterion_sources
+
+    matcher = AnthropicClaimMatcher(get_claim_llm(get_settings()))
+    with Session(get_engine()) as session:
+        candidates = session.scalars(
+            select(ExternalSource.finalist_category_id)
+            .where(
+                ExternalSource.auto_accepted,
+                ExternalSource.reviewer_outcome == ReviewOutcome.ACCEPTED,
+                ExternalSource.criterion_code.is_not(None),
+                ExternalSource.claims_matched_at.is_(None),
+            )
+            .distinct()
+        ).all()
+    links = failed = 0
+    for fc_id in candidates:
+        with Session(get_engine()) as session:
+            try:
+                links += match_criterion_sources(session, matcher, fc_id).links
+                session.commit()
+            except Exception as exc:  # noqa: BLE001 - one candidate failing shouldn't stop the rest
+                failed += 1
+                print(f"FAIL {fc_id}: {exc}")
+    print(
+        f"Matched {len(candidates) - failed} candidate(s): {links} link(s) to claims"
+        + (f"; {failed} failed, run again to retry" if failed else "")
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -169,6 +204,7 @@ def main() -> None:
         "verify-storage",
         "purge-expired",
         "auto-accept-research",
+        "match-research-claims",
     ):
         commands.add_parser(name)
     args = parser.parse_args()
@@ -186,6 +222,8 @@ def main() -> None:
         purge_expired()
     elif args.command == "auto-accept-research":
         auto_accept_research()
+    elif args.command == "match-research-claims":
+        match_research_claims()
     else:
         verify_storage()
 

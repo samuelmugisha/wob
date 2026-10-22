@@ -25,6 +25,7 @@ from app.prompts.external_research import PROMPT_VERSION, SYSTEM_PROMPT, user_pr
 from app.services import audit, consent
 from app.services.claims.llm import ExtractionLLMError
 from app.services.research.llm import ResearchLLM
+from app.services.research.matching import ClaimMatcher, match_after_job
 from app.services.research.research import verify_findings
 from app.services.rubrics import current_rubric
 from app.services.verification import auto_accept_external_source
@@ -87,6 +88,8 @@ class ResearchPipeline:
     sessions: sessionmaker[Session]
     llm: ResearchLLM
     settings: Settings
+    # Links auto-accepted criterion sources to the claims they support.
+    matcher: ClaimMatcher | None = None
 
     def run_once(self) -> bool:
         with self.sessions() as session:
@@ -222,6 +225,7 @@ class ResearchPipeline:
             auto_accepted,
             len(outcome.discarded),
         )
+        match_after_job(self.sessions, self.matcher, fc.id, only_unmatched=True)
 
     def _fail(self, run_id: uuid.UUID, message: str, *, retry: bool) -> None:
         with self.sessions() as session:

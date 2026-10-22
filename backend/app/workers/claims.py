@@ -30,6 +30,7 @@ from app.services.claims.extraction import (
     parse_period,
 )
 from app.services.claims.llm import ClaimLLM, ExtractionLLMError
+from app.services.research.matching import ClaimMatcher, match_after_job
 from app.services.verification import (
     carry_forward,
     external_evidence_by_wording,
@@ -64,6 +65,8 @@ class ClaimPipeline:
     sessions: sessionmaker[Session]
     llm: ClaimLLM
     settings: Settings
+    # Links auto-accepted criterion sources to the new claims they support.
+    matcher: ClaimMatcher | None = None
 
     def run_once(self) -> bool:
         with self.sessions() as session:
@@ -217,6 +220,7 @@ class ClaimPipeline:
             len(outcome.claims),
             len(outcome.discarded),
         )
+        match_after_job(self.sessions, self.matcher, finalist_category_id, only_unmatched=False)
 
     def _fail(self, run_id: uuid.UUID, message: str, *, retry: bool) -> None:
         with self.sessions() as session:

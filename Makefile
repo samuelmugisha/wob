@@ -1,6 +1,6 @@
 COMPOSE = docker compose --env-file .env -f infrastructure/docker/compose.yaml
 
-.PHONY: db-up db-down db-reset migrate test lint api api-local benchmark user invite encrypt-storage rotate-file-key verify-storage purge-expired auto-accept-research web worker worker-logs
+.PHONY: db-up db-down db-reset migrate test lint api api-local benchmark user invite encrypt-storage rotate-file-key verify-storage purge-expired auto-accept-research match-research-claims web worker worker-logs
 
 db-up:        ## Start Postgres + pgvector
 	$(COMPOSE) up -d --wait db
@@ -60,3 +60,6 @@ purge-expired:    ## Destroy personal data of categories past their retention da
 
 auto-accept-research:  ## Apply automatic acceptance to findings from earlier research
 	cd backend && uv run python -m app.cli auto-accept-research
+
+match-research-claims:  ## Link auto-accepted criterion findings to the claims they support
+	cd backend && uv run python -m app.cli match-research-claims

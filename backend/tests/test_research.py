@@ -2,6 +2,7 @@
 reviewer and automatic acceptance, and corroboration."""
 
 import re
+import uuid
 from datetime import UTC, datetime
 
 import pytest
@@ -9,10 +10,18 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import sessionmaker
 
+from app import cli
 from app.config import get_settings
+from app.models import ExternalSource
 from app.services.assessment.schema import Citation, CriterionRating
 from app.services.claims.llm import ExtractionRefused
 from app.services.research.llm import FetchedPage, ResearchResult, ScriptedResearchLLM
+from app.services.research.matching import (
+    ClaimMatch,
+    ClaimMatchOutput,
+    ScriptedClaimMatcher,
+    match_criterion_sources,
+)
 from app.services.research.research import canonical_url, passage_around
 from app.services.research.schema import (
     CriterionFinding,
@@ -144,17 +153,18 @@ def world(client_for, coordinator: TestClient, make_pipeline, engine: Engine) ->
     }
 
 
-def research_pipeline(engine: Engine, respond=research_respond, **overrides):
+def research_pipeline(engine: Engine, respond=research_respond, matcher=None, **overrides):
     llm = ScriptedResearchLLM(respond)
     settings = get_settings().model_copy(update={"research_enabled": True, **overrides})
-    return ResearchPipeline(sessionmaker(engine, expire_on_commit=False), llm, settings), llm
+    sessions = sessionmaker(engine, expire_on_commit=False)
+    return ResearchPipeline(sessions, llm, settings, matcher), llm
 
 
-def run_research(world, respond=research_respond) -> tuple[dict, ScriptedResearchLLM]:
+def run_research(world, respond=research_respond, matcher=None) -> tuple[dict, ScriptedResearchLLM]:
     reviewer = world["reviewer"]
     response = reviewer.post(f"{world['base']}/research")
     assert response.status_code == 202, response.text
-    pipeline, llm = research_pipeline(world["engine"], respond)
+    pipeline, llm = research_pipeline(world["engine"], respond, matcher)
     assert pipeline.run_once()
     return reviewer.get(f"{world['base']}/research").json(), llm
 
@@ -528,6 +538,78 @@ def test_candidate_without_documents_is_researched_by_criterion(
     items = coordinator.get(f"{base}/assessments").json()["items"]
     assert len(items) == len(criteria)
     assert all("uncited_rating" not in i["flags"] for i in items)
+
+
+def match_respond(system: str, user: str) -> ClaimMatchOutput:
+    refs = refs_in(user)
+    return ClaimMatchOutput(
+        matches=[
+            ClaimMatch(source_ref="S1", claim_ref=refs[AUDIT], quote="CHAIRED the Audit Committee"),
+            # Discarded: the quote isn't in the source; the source is unknown.
+            ClaimMatch(source_ref="S1", claim_ref=refs[MENTOR], quote="mentors twelve women"),
+            ClaimMatch(source_ref="S9", claim_ref=refs[AUDIT], quote="Audit Committee"),
+        ]
+    )
+
+
+def public_evidence(world, statement: str) -> list[dict]:
+    claim = claims_by_statement(world["reviewer"], {"base": world["base_claims"]})[statement]
+    return [e for e in claim["evidence"] if e["external_source_id"]]
+
+
+def test_criterion_sources_are_linked_to_the_claims_they_support(world, coordinator) -> None:
+    coordinator.post(
+        f"/api/v1/categories/{world['category']['id']}/rubrics", json={"use_template": True}
+    )
+    matcher = ScriptedClaimMatcher(match_respond)
+    body, _ = run_research(world, criterion_respond, matcher)
+    [source] = [f for f in body["findings"] if f["auto_accepted"]]
+    assert source["criterion_code"] and source["claim_id"] is None
+
+    system, user = matcher.calls[0]
+    assert "untrusted data" in system and AUDIT in user and "Board of Directors" in user
+    [link] = public_evidence(world, AUDIT)
+    assert link["external_source_id"] == source["id"]
+    assert link["quote"] == "CHAIRED the Audit Committee"
+    assert not public_evidence(world, MENTOR)
+    claim = claims_by_statement(world["reviewer"], {"base": world["base_claims"]})[AUDIT]
+    assert claim["independent_sources"] == 3  # two documents and one website
+
+    # Matched sources aren't sent again; re-extracted claims are matched against all of them.
+    with sessionmaker(world["engine"])() as session:
+        fc_id = session.get_one(ExternalSource, uuid.UUID(source["id"])).finalist_category_id
+        assert match_criterion_sources(session, matcher, fc_id).sources == 0
+    coordinator.post(f"{world['base']}/claims/extract")
+    pipeline, _ = claims_pipeline(world["engine"], extraction_respond)
+    pipeline.matcher = matcher
+    pipeline.run_once()
+    assert len(matcher.calls) == 2
+    assert len(public_evidence(world, AUDIT)) == 1  # carried forward, not linked twice
+
+    # Overturning the automatic acceptance removes the links it made.
+    rejected = world["reviewer"].post(
+        f"/api/v1/external-sources/{source['id']}/review",
+        json={"outcome": "rejected", "notes": "Wrong Jane Doe."},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert not public_evidence(world, AUDIT)
+
+
+def test_earlier_criterion_sources_can_be_matched(world, coordinator, monkeypatch) -> None:
+    coordinator.post(
+        f"/api/v1/categories/{world['category']['id']}/rubrics", json={"use_template": True}
+    )
+    run_research(world, criterion_respond)  # no matcher: research from before matching existed
+    assert not public_evidence(world, AUDIT)
+
+    matcher = ScriptedClaimMatcher(match_respond)
+    monkeypatch.setattr("app.cli.get_engine", lambda: world["engine"])
+    monkeypatch.setattr("app.services.research.matching.AnthropicClaimMatcher", lambda llm: matcher)
+    monkeypatch.setattr("app.services.claims.llm.get_claim_llm", lambda settings: None)
+    cli.match_research_claims()
+    assert len(public_evidence(world, AUDIT)) == 1
+    cli.match_research_claims()  # nothing left to match
+    assert len(matcher.calls) == 1
 
 
 def test_url_and_passage_helpers() -> None:

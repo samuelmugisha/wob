@@ -476,6 +476,7 @@ class ExternalSource(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(Timestamp)
     review_notes: Mapped[str | None]
     superseded_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    claims_matched_at: Mapped[datetime | None] = mapped_column(Timestamp)
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
 
 
