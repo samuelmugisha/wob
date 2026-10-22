@@ -4,6 +4,7 @@ export type Category = {
   code: string;
   name: string;
   description: string | null;
+  hidden_at: string | null;
   finalist_count: number;
   document_count: number;
 };
@@ -635,7 +636,10 @@ const json = (method: string, data: unknown): RequestInit => ({
 });
 
 export const api = {
-  listCategories: () => request<Category[]>("/categories"),
+  listCategories: (includeHidden = false) =>
+    request<Category[]>(`/categories${includeHidden ? "?include_hidden=true" : ""}`),
+  setCategoryVisibility: (id: string, hidden: boolean) =>
+    request<Category>(`/categories/${id}/visibility`, json("PUT", { hidden })),
   dashboard: () => request<Dashboard>("/dashboard"),
   library: (filters: LibraryFilters) => {
     const params = new URLSearchParams();

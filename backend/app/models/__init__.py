@@ -112,6 +112,7 @@ class AwardCategory(Base):
     name: Mapped[str]
     description: Mapped[str | None]
     retention_until: Mapped[date | None] = mapped_column(Date)
+    hidden_at: Mapped[datetime | None] = mapped_column(Timestamp)
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
 
 

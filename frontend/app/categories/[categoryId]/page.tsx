@@ -45,8 +45,29 @@ export default function CategoryPage() {
           <h1>{category?.name ?? "Loading…"}</h1>
           {category?.description && <p className="muted" style={{ margin: 0 }}>{category.description}</p>}
         </div>
-        {!showForm && <button onClick={() => setShowForm(true)}>Add candidate</button>}
+        <div className="inline-form">
+          {category && me?.permissions.manage_users && (
+            <button
+              className="secondary"
+              onClick={() =>
+                api
+                  .setCategoryVisibility(categoryId, !category.hidden_at)
+                  .then(setCategory, (e: Error) => setError(e.message))
+              }
+            >
+              {category.hidden_at ? "Show category" : "Hide category"}
+            </button>
+          )}
+          {!showForm && <button onClick={() => setShowForm(true)}>Add candidate</button>}
+        </div>
       </div>
+
+      {category?.hidden_at && (
+        <div className="notice warning">
+          This category is hidden: it doesn&apos;t appear in lists, the dashboard, rankings or the judges&apos; pack.
+          Nothing in it has been changed or deleted.
+        </div>
+      )}
 
       {showForm && (
         <AddCandidateForm

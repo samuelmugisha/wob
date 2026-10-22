@@ -156,5 +156,7 @@ def _category(session: Session, category: AwardCategory, user: User) -> PackCate
 def judges_pack(session: SessionDep, user: CurrentUser) -> list[PackCategory]:
     """Each category's top three finalists in its latest ranking, with the individual reports
     generated from that ranking and the documents that passed scanning."""
-    categories = session.scalars(select(AwardCategory).order_by(AwardCategory.code))
+    categories = session.scalars(
+        select(AwardCategory).where(AwardCategory.hidden_at.is_(None)).order_by(AwardCategory.code)
+    )
     return [_category(session, c, user) for c in categories]

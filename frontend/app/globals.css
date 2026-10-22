@@ -503,3 +503,5 @@ td > .badge:first-child { margin-left: 0; }
 .pack-score { font-size: 20px; font-weight: 600; margin: 8px 0 4px; }
 .pack-docs { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .pack-docs a { overflow-wrap: anywhere; }
+
+.tile-hidden { opacity: 0.6; }

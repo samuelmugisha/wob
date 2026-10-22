@@ -1,6 +1,7 @@
 """Knowledge base: award categories, their shortlisted candidates, and candidate evidence."""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import (
@@ -38,6 +39,7 @@ from app.models import (
 from app.schemas.knowledge_base import (
     CategoryCreate,
     CategoryOut,
+    CategoryVisibilityIn,
     ChunkOut,
     CitationCheckOut,
     CitationVerifyRequest,
@@ -50,7 +52,7 @@ from app.schemas.knowledge_base import (
     UploadResultOut,
     WithdrawRequest,
 )
-from app.security.auth import Coordinator, CurrentUser
+from app.security.auth import Admin, Coordinator, CurrentUser
 from app.services import audit, consent
 from app.services.citations import Citation, verify_citations
 from app.services.documents import Upload, store_uploads, withdraw_document
@@ -111,7 +113,10 @@ def _finalist_out(
 
 
 @router.get("/categories")
-def list_categories(session: SessionDep, _: CurrentUser) -> list[CategoryOut]:
+def list_categories(
+    session: SessionDep, _: CurrentUser, include_hidden: bool = False
+) -> list[CategoryOut]:
+    """Categories by name; hidden ones (such as test categories) only with include_hidden."""
     finalist_count = (
         select(func.count(FinalistCategory.id))
         .where(FinalistCategory.category_id == AwardCategory.id)
@@ -123,9 +128,10 @@ def list_categories(session: SessionDep, _: CurrentUser) -> list[CategoryOut]:
         .where(FinalistCategory.category_id == AwardCategory.id, Document.withdrawn_at.is_(None))
         .scalar_subquery()
     )
-    rows = session.execute(
-        select(AwardCategory, finalist_count, document_count).order_by(AwardCategory.name)
-    )
+    query = select(AwardCategory, finalist_count, document_count).order_by(AwardCategory.name)
+    if not include_hidden:
+        query = query.where(AwardCategory.hidden_at.is_(None))
+    rows = session.execute(query)
     return [
         CategoryOut.model_validate(c).model_copy(update={"finalist_count": f, "document_count": d})
         for c, f, d in rows
@@ -143,6 +149,27 @@ def create_category(body: CategoryCreate, session: SessionDep, user: Coordinator
         session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "a category with this code exists") from exc
     session.refresh(category)
+    return CategoryOut.model_validate(category)
+
+
+@router.put("/categories/{category_id}/visibility")
+def set_category_visibility(
+    category_id: uuid.UUID, body: CategoryVisibilityIn, session: SessionDep, admin: Admin
+) -> CategoryOut:
+    """Hide a category from lists, the dashboard and the judges' pack, or show it again. Nothing
+    in it changes; it stays reachable by its link."""
+    category = _get_category(session, category_id)
+    if body.hidden != (category.hidden_at is not None):
+        category.hidden_at = datetime.now(UTC) if body.hidden else None
+        audit.record(
+            session,
+            admin,
+            "category.hidden" if body.hidden else "category.shown",
+            "award_category",
+            category.id,
+            code=category.code,
+        )
+        session.commit()
     return CategoryOut.model_validate(category)
 
 

@@ -3,16 +3,22 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { IconFolder } from "@/components/Icons";
-import { api, type Category, slugify } from "@/lib/api";
+import { api, type Category, type Me, slugify } from "@/lib/api";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
+  // Administrators also see hidden categories, so they can show them again.
+  const isAdmin = me?.permissions.manage_users ?? false;
 
-  const load = useCallback(() => {
-    api.listCategories().then(setCategories, (e: Error) => setError(e.message));
+  useEffect(() => {
+    api.me().then(setMe, () => setMe(null));
   }, []);
+  const load = useCallback(() => {
+    api.listCategories(isAdmin).then(setCategories, (e: Error) => setError(e.message));
+  }, [isAdmin]);
   useEffect(load, [load]);
 
   return (
@@ -45,11 +51,13 @@ export default function CategoriesPage() {
 
       <div className="grid">
         {categories?.map((c) => (
-          <Link key={c.id} href={`/categories/${c.id}`} className="tile">
+          <Link key={c.id} href={`/categories/${c.id}`} className={`tile${c.hidden_at ? " tile-hidden" : ""}`}>
             <span className="tile-icon" aria-hidden>
               <IconFolder size={20} />
             </span>
-            <h3>{c.name}</h3>
+            <h3>
+              {c.name} {c.hidden_at && <span className="badge muted">Hidden</span>}
+            </h3>
             {c.description && <div className="muted small">{c.description}</div>}
             <div className="stats">
               <span>

@@ -21,8 +21,13 @@ class CategoryOut(BaseModel):
     code: str
     name: str
     description: str | None
+    hidden_at: datetime | None = None
     finalist_count: int = 0
     document_count: int = 0
+
+
+class CategoryVisibilityIn(BaseModel):
+    hidden: bool
 
 
 class FinalistCreate(BaseModel):

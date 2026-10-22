@@ -71,6 +71,7 @@ _CATEGORIES = text("""
              WHERE fc.category_id = c.id AND d.withdrawn_at IS NULL) AS documents,
            EXISTS (SELECT 1 FROM ranking_snapshots s WHERE s.category_id = c.id) AS ranked
       FROM award_categories c
+     WHERE c.hidden_at IS NULL
      ORDER BY c.name
 """)
 
@@ -94,6 +95,7 @@ _PROGRESS = text("""
       count(*) FILTER (WHERE claims.total > 0 AND claims.reviewed = claims.total)
           AS claims_verified
     FROM finalist_categories fc
+    JOIN award_categories c ON c.id = fc.category_id AND c.hidden_at IS NULL
     CROSS JOIN LATERAL (
         SELECT count(*) FILTER (WHERE d.withdrawn_at IS NULL) AS active,
                count(*) FILTER (WHERE d.withdrawn_at IS NULL AND d.processing_status
@@ -119,7 +121,7 @@ _LATEST_ENTRIES = text("""
            f.id AS finalist_id, f.full_name, f.organisation,
            e.rank, e.is_tie, e.score, e.criterion_ratings
       FROM latest l
-      JOIN award_categories c ON c.id = l.category_id
+      JOIN award_categories c ON c.id = l.category_id AND c.hidden_at IS NULL
       JOIN ranking_entries e ON e.snapshot_id = l.id
       JOIN finalist_categories fc ON fc.id = e.finalist_category_id
       JOIN finalists f ON f.id = fc.finalist_id
@@ -235,7 +237,8 @@ def library(
     base = (
         "FROM documents d JOIN finalist_categories fc ON fc.id = d.finalist_category_id "
         "JOIN finalists f ON f.id = fc.finalist_id "
-        "JOIN award_categories c ON c.id = fc.category_id WHERE " + " AND ".join(where)
+        "JOIN award_categories c ON c.id = fc.category_id AND c.hidden_at IS NULL "
+        "WHERE " + " AND ".join(where)
     )
     total = session.scalar(text(f"SELECT count(*) {base}"), params) or 0  # noqa: S608
     rows = session.execute(
