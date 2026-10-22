@@ -438,7 +438,7 @@ class ResearchRun(Base):
 
 class ExternalSource(Base):
     """A public-web finding about one claim or one award criterion, pending a reviewer's
-    acceptance."""
+    acceptance unless it was accepted automatically as coming from a credible source."""
 
     __tablename__ = "external_sources"
 
@@ -471,6 +471,7 @@ class ExternalSource(Base):
     reviewer_outcome: Mapped[ReviewOutcome] = mapped_column(
         _pg_enum(ReviewOutcome, "review_outcome"), default=ReviewOutcome.PENDING
     )
+    auto_accepted: Mapped[bool] = mapped_column(default=False)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(Timestamp)
     review_notes: Mapped[str | None]

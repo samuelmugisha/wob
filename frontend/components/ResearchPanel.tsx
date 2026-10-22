@@ -103,6 +103,43 @@ function SourceReview({ source, onDone }: { source: PublicSource; onDone: () => 
   );
 }
 
+/** Reject a finding that was accepted automatically; notes are required. */
+function Overturn({ source, onDone }: { source: PublicSource; onDone: () => void }) {
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reject() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.reviewSource(source.id, { outcome: "rejected", notes: notes.trim() });
+      onDone();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="source-review">
+      <div className="form-row">
+        <div className="field">
+          <label htmlFor={`overturn-${source.id}`}>Notes (required to reject)</label>
+          <input id={`overturn-${source.id}`} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+      </div>
+      <div className="inline-form">
+        <button className="danger" onClick={reject} disabled={busy || !notes.trim()}>
+          Reject
+        </button>
+      </div>
+      {error && <div className="notice error">{error}</div>}
+    </div>
+  );
+}
+
 function SourceCard({ source, canReview, onChanged }: { source: PublicSource; canReview: boolean; onChanged: () => void }) {
   return (
     <article className="claim">
@@ -121,7 +158,11 @@ function SourceCard({ source, canReview, onChanged }: { source: PublicSource; ca
         )}
         {source.reviewer_outcome !== "pending" && (
           <span className={`badge${source.reviewer_outcome === "accepted" ? " success" : " muted"}`}>
-            {source.reviewer_outcome === "accepted" ? "Accepted" : "Rejected"}
+            {source.reviewer_outcome === "accepted"
+              ? source.reviewed_by
+                ? "Accepted"
+                : "Auto-accepted"
+              : "Rejected"}
           </span>
         )}
       </div>
@@ -147,12 +188,19 @@ function SourceCard({ source, canReview, onChanged }: { source: PublicSource; ca
         <span className="muted">{source.identity_notes}</span>
       </div>
       {source.reviewer_outcome !== "pending" ? (
-        <div className="muted small" style={{ marginTop: 6 }}>
-          {source.reviewer_outcome === "accepted" ? "Accepted" : "Rejected"} by {source.reviewed_by}
-          {source.reviewed_at && `, ${formatDate(source.reviewed_at)}`}
-          {source.credibility && ` · ${source.credibility} credibility`}
-          {source.review_notes && ` · ${source.review_notes}`}
-        </div>
+        <>
+          <div className="muted small" style={{ marginTop: 6 }}>
+            {source.reviewer_outcome === "accepted" ? "Accepted" : "Rejected"}{" "}
+            {source.reviewed_by ? `by ${source.reviewed_by}` : "automatically as a credible source"}
+            {source.reviewed_at && `, ${formatDate(source.reviewed_at)}`}
+            {source.credibility && ` · ${source.credibility} credibility`}
+            {source.auto_accepted && source.reviewed_by && " · overturned an automatic acceptance"}
+            {source.review_notes && ` · ${source.review_notes}`}
+          </div>
+          {canReview && source.auto_accepted && !source.reviewed_by && (
+            <Overturn source={source} onDone={onChanged} />
+          )}
+        </>
       ) : (
         canReview && <SourceReview source={source} onDone={onChanged} />
       )}
@@ -161,7 +209,8 @@ function SourceCard({ source, canReview, onChanged }: { source: PublicSource; ca
 }
 
 /** Credible public sources found for the candidate's claims and for each award criterion (FR-13),
- * for reviewers to accept. */
+ * for reviewers to accept; supporting findings from official or organisation sources are accepted
+ * automatically. */
 export default function ResearchPanel({ categoryId, finalistId }: { categoryId: string; finalistId: string }) {
   const [data, setData] = useState<ResearchResponse | null>(null);
   const [me, setMe] = useState<Me | null>(null);
@@ -219,8 +268,11 @@ export default function ResearchPanel({ categoryId, finalistId }: { categoryId: 
         Credible public sources (registries, regulators, organisation sites, annual reports, news)
         that confirm or contradict the claims, plus public evidence for each criterion of the
         category&apos;s rubric, so candidates without uploaded documents can be researched too. Each
-        quote was checked against the page as fetched. Nothing counts as evidence until a reviewer
-        accepts it; accepted sources are used in AI assessment.
+        quote was checked against the page as fetched. Supporting findings from registries,
+        regulators, annual reports, professional bodies or the organisation&apos;s own website that are
+        certainly about this nominee are accepted automatically; reviewers can still reject them.
+        Everything else, including any evidence against a nominee, counts only once a reviewer accepts
+        it. Accepted sources are used in AI assessment.
       </p>
       {!data.research.enabled && (
         <div className="notice warning">External research is off: {data.research.reason}</div>
@@ -256,7 +308,7 @@ export default function ResearchPanel({ categoryId, finalistId }: { categoryId: 
       ))}
       {reviewed.length > 0 && <h3 className="subhead">Reviewed</h3>}
       {reviewed.map((s) => (
-        <SourceCard key={s.id} source={s} canReview={false} onChanged={load} />
+        <SourceCard key={s.id} source={s} canReview={canReview} onChanged={load} />
       ))}
 
       {run?.status === "succeeded" && run.not_found.length > 0 && (

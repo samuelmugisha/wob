@@ -1,5 +1,5 @@
 """External research of public sources (FR-13): findings, verification against fetched pages,
-reviewer acceptance, and corroboration."""
+reviewer and automatic acceptance, and corroboration."""
 
 import re
 from datetime import UTC, datetime
@@ -75,11 +75,13 @@ def research_respond(system: str, user: str) -> ResearchResult:
     return ResearchResult(
         output=ResearchOutput(
             findings=[
-                # Verified: case and spacing differ from the page, which is fine.
+                # Verified: case and spacing differ from the page, which is fine. Labelled news so
+                # that it waits for a reviewer rather than being accepted automatically.
                 finding(
                     refs[AUDIT],
                     COMPANY_PAGE.url.rstrip("/"),
                     "Ms Doe has chaired the Audit Committee of Example Holdings since 2019",
+                    source_type="news_media",
                 ),
                 finding(
                     refs[MENTOR],
@@ -295,6 +297,109 @@ def test_accepted_public_evidence_survives_re_extraction(world, coordinator) -> 
     assert claim["latest_review"]["carried_forward"] is True
 
 
+def auto_respond(system: str, user: str) -> ResearchResult:
+    refs = refs_in(user)
+    quote = "has chaired the Audit Committee of Example Holdings since 2019"
+    return ResearchResult(
+        output=ResearchOutput(
+            findings=[
+                finding(refs[AUDIT], COMPANY_PAGE.url, quote),
+                # Evidence against a nominee, and possible namesakes, always wait for a reviewer.
+                finding(
+                    refs[AUDIT],
+                    COMPANY_PAGE.url,
+                    "previously served on the risk committee",
+                    relation="contradicts",
+                    source_type="annual_report",
+                ),
+                # News waits for a reviewer even when certainly about the nominee.
+                finding(
+                    refs[MENTOR],
+                    NEWS_PAGE.url,
+                    "Jane Doe mentors twelve women",
+                    source_type="news_media",
+                ),
+                finding(
+                    refs[MENTOR],
+                    NEWS_PAGE.url,
+                    "a director named Jane Doe",
+                    identity="medium",
+                    source_type="regulator",
+                ),
+            ],
+            not_found=[],
+            identity_concerns=[],
+        ),
+        pages=[COMPANY_PAGE, NEWS_PAGE],
+        searches=2,
+    )
+
+
+def test_credible_supporting_findings_are_accepted_automatically(world) -> None:
+    reviewer = world["reviewer"]
+    body, _ = run_research(world, auto_respond)
+    [auto] = [f for f in body["findings"] if f["auto_accepted"]]
+    assert auto["claim_statement"] == AUDIT and auto["relation"] == "supports"
+    assert (auto["reviewer_outcome"], auto["credibility"]) == ("accepted", "medium")
+    assert auto["reviewed_by"] is None and auto["reviewed_at"]
+    pending = [f for f in body["findings"] if f["reviewer_outcome"] == "pending"]
+    assert len(pending) == 3
+
+    claim = claims_by_statement(reviewer, {"base": world["base_claims"]})[AUDIT]
+    assert [e["url"] for e in claim["evidence"] if e["external_source_id"]] == [COMPANY_PAGE.url]
+    assert claim["independent_sources"] == 3  # two documents and one website
+
+    # Researching again doesn't accept the same page for the same claim twice.
+    body, _ = run_research(world, auto_respond)
+    assert [f["id"] for f in body["findings"] if f["auto_accepted"]] == [auto["id"]]
+    claim = claims_by_statement(reviewer, {"base": world["base_claims"]})[AUDIT]
+    assert len([e for e in claim["evidence"] if e["external_source_id"]]) == 1
+
+
+def test_reviewer_can_overturn_an_automatic_acceptance(world) -> None:
+    reviewer = world["reviewer"]
+    body, _ = run_research(world, auto_respond)
+    [auto] = [f for f in body["findings"] if f["auto_accepted"]]
+    url = f"/api/v1/external-sources/{auto['id']}/review"
+
+    assert reviewer.post(url, json={"outcome": "rejected"}).status_code == 422  # notes needed
+    again = reviewer.post(url, json={"outcome": "accepted", "credibility": "high"})
+    assert again.status_code == 409
+    rejected = reviewer.post(url, json={"outcome": "rejected", "notes": "Page is out of date."})
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["reviewer_outcome"] == "rejected"
+    assert rejected.json()["auto_accepted"] is True
+    assert rejected.json()["reviewed_by"]
+    assert reviewer.post(url, json={"outcome": "rejected", "notes": "x"}).status_code == 409
+
+    claim = claims_by_statement(reviewer, {"base": world["base_claims"]})[AUDIT]
+    assert not [e for e in claim["evidence"] if e["external_source_id"]]
+    assert claim["independent_sources"] == 2
+
+
+def test_earlier_research_can_be_auto_accepted(world, monkeypatch) -> None:
+    from app.services.verification import auto_accept_pending_sources
+
+    # Research from before automatic acceptance existed: everything awaits review.
+    monkeypatch.setattr(
+        "app.workers.research.auto_accept_external_source", lambda session, source: False
+    )
+    body, _ = run_research(world, auto_respond)
+    assert {f["reviewer_outcome"] for f in body["findings"]} == {"pending"}
+
+    with sessionmaker(world["engine"])() as session:
+        assert auto_accept_pending_sources(session) == 1
+        session.commit()
+    with sessionmaker(world["engine"])() as session:
+        assert auto_accept_pending_sources(session) == 0  # running it again changes nothing
+
+    body = world["reviewer"].get(f"{world['base']}/research").json()
+    [auto] = [f for f in body["findings"] if f["auto_accepted"]]
+    assert auto["claim_statement"] == AUDIT and auto["reviewer_outcome"] == "accepted"
+    claim = claims_by_statement(world["reviewer"], {"base": world["base_claims"]})[AUDIT]
+    assert claim["independent_sources"] == 3
+
+
 def test_research_failures(world) -> None:
     body, _ = run_research(world, lambda s, u: ExtractionRefused("declined (category: cyber)"))
     assert body["latest_run"]["status"] == "failed"
@@ -390,15 +495,15 @@ def test_candidate_without_documents_is_researched_by_criterion(
     assert f"K1: {criteria[0]['name']}." in user
     assert "absence online says nothing against" in system
 
+    # The organisation's own page, certainly about her, is accepted without a reviewer.
     [finding] = body["findings"]
     assert finding["claim_id"] is None and finding["relation"] is None
     assert (finding["criterion_code"], finding["criterion_name"]) == (
         criteria[0]["code"],
         criteria[0]["name"],
     )
-    url = f"/api/v1/external-sources/{finding['id']}/review"
-    accepted = reviewer.post(url, json={"outcome": "accepted", "credibility": "high"})
-    assert accepted.status_code == 200, accepted.text
+    assert finding["reviewer_outcome"] == "accepted" and finding["auto_accepted"] is True
+    assert finding["credibility"] == "medium" and finding["reviewed_by"] is None
 
     # The accepted source is public evidence for AI assessment.
     def cite_public_source(system: str, user: str) -> CriterionRating:

@@ -27,6 +27,7 @@ from app.services.claims.llm import ExtractionLLMError
 from app.services.research.llm import ResearchLLM
 from app.services.research.research import verify_findings
 from app.services.rubrics import current_rubric
+from app.services.verification import auto_accept_external_source
 
 log = logging.getLogger("wob.research")
 
@@ -162,28 +163,31 @@ class ResearchPipeline:
                 )
                 .values(superseded_at=now)
             )
-            for f in outcome.findings:
-                session.add(
-                    ExternalSource(
-                        finalist_category_id=fc.id,
-                        research_run_id=run_id,
-                        claim_id=f.claim_id,
-                        criterion_code=f.criterion[0] if f.criterion else None,
-                        criterion_name=f.criterion[1] if f.criterion else None,
-                        relation=EvidenceRelation(f.relation) if f.relation else None,
-                        publisher=f.publisher,
-                        url=f.url,
-                        title=f.title,
-                        published_at=f.published_at,
-                        retrieved_at=f.retrieved_at,
-                        quote=f.quote,
-                        evidence_passage=f.passage,
-                        content_sha256=f.content_sha256,
-                        source_type=f.source_type,
-                        identity_confidence=QualityLevel(f.identity_confidence),
-                        identity_notes=f.identity_notes,
-                    )
+            sources = [
+                ExternalSource(
+                    finalist_category_id=fc.id,
+                    research_run_id=run_id,
+                    claim_id=f.claim_id,
+                    criterion_code=f.criterion[0] if f.criterion else None,
+                    criterion_name=f.criterion[1] if f.criterion else None,
+                    relation=EvidenceRelation(f.relation) if f.relation else None,
+                    publisher=f.publisher,
+                    url=f.url,
+                    title=f.title,
+                    published_at=f.published_at,
+                    retrieved_at=f.retrieved_at,
+                    quote=f.quote,
+                    evidence_passage=f.passage,
+                    content_sha256=f.content_sha256,
+                    source_type=f.source_type,
+                    identity_confidence=QualityLevel(f.identity_confidence),
+                    identity_notes=f.identity_notes,
                 )
+                for f in outcome.findings
+            ]
+            session.add_all(sources)
+            session.flush()
+            auto_accepted = sum(auto_accept_external_source(session, s) for s in sources)
             run.status = JobStatus.SUCCEEDED
             run.completed_at = now
             run.error = None
@@ -205,15 +209,17 @@ class ResearchPipeline:
                 "research_run",
                 run_id,
                 findings=len(outcome.findings),
+                auto_accepted=auto_accepted,
                 discarded=len(outcome.discarded),
                 searches=result.searches,
                 pages_fetched=len(result.pages),
             )
             session.commit()
         log.info(
-            "research run %s: %d findings, %d discarded",
+            "research run %s: %d findings (%d auto-accepted), %d discarded",
             run_id,
             len(outcome.findings),
+            auto_accepted,
             len(outcome.discarded),
         )
 

@@ -245,6 +245,7 @@ export type PublicSource = {
   identity_confirmed: boolean;
   credibility: Quality | null;
   reviewer_outcome: "pending" | "accepted" | "rejected";
+  auto_accepted: boolean;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;

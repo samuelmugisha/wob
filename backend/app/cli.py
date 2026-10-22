@@ -2,6 +2,7 @@
 
 python -m app.cli create-user EMAIL "Display Name" ROLE   # prints a set-password link
 python -m app.cli invite EMAIL                            # new link (signs the user out)
+python -m app.cli auto-accept-research                    # auto-accept earlier research findings
 """
 
 import argparse
@@ -140,6 +141,17 @@ def purge_expired() -> None:
         )
 
 
+def auto_accept_research() -> None:
+    """Accept credible supporting findings from research run before automatic acceptance existed,
+    by the same rules as new runs."""
+    from app.services.verification import auto_accept_pending_sources
+
+    with Session(get_engine()) as session:
+        accepted = auto_accept_pending_sources(session)
+        session.commit()
+    print(f"Accepted {accepted} finding(s) automatically; the rest still await review.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -151,7 +163,13 @@ def main() -> None:
     reinvite.add_argument("email")
     keygen = commands.add_parser("generate-file-key")
     keygen.add_argument("key_id", nargs="?", default=None)
-    for name in ("encrypt-storage", "rotate-file-key", "verify-storage", "purge-expired"):
+    for name in (
+        "encrypt-storage",
+        "rotate-file-key",
+        "verify-storage",
+        "purge-expired",
+        "auto-accept-research",
+    ):
         commands.add_parser(name)
     args = parser.parse_args()
     if args.command == "create-user":
@@ -166,6 +184,8 @@ def main() -> None:
         rotate_file_key()
     elif args.command == "purge-expired":
         purge_expired()
+    elif args.command == "auto-accept-research":
+        auto_accept_research()
     else:
         verify_storage()
 
