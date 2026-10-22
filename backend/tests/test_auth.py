@@ -89,7 +89,7 @@ def test_invitation_sets_password_and_signs_in(client, engine, settings) -> None
 
 
 def test_unauthenticated_requests_are_refused(client) -> None:
-    for path in ("/api/v1/me", "/api/v1/categories", "/api/v1/users"):
+    for path in ("/api/v1/me", "/api/v1/categories", "/api/v1/users", "/api/v1/judges-pack"):
         response = client.get(path)
         assert response.status_code == 401, path
         assert response.headers["www-authenticate"] == "Bearer"

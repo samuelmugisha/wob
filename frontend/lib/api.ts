@@ -251,6 +251,34 @@ export type PublicSource = {
   review_notes: string | null;
 };
 
+export type JudgesPackReport = { id: string; created_at: string };
+
+export type JudgesPackFinalist = {
+  finalist_id: string;
+  full_name: string;
+  organisation: string | null;
+  position_title: string | null;
+  rank: number;
+  is_tie: boolean;
+  score_display: string | null;
+  points_display: string | null;
+  unreviewed_criteria: string[];
+  report: JudgesPackReport | null;
+  documents: { id: string; filename: string; mime_type: string; size_bytes: number; source_type: SourceType }[];
+};
+
+export type JudgesPackCategory = {
+  id: string;
+  code: string;
+  name: string;
+  ranking_id: string | null;
+  ranked_at: string | null;
+  production: boolean;
+  hidden_for_calibration: boolean;
+  category_report: JudgesPackReport | null;
+  finalists: JudgesPackFinalist[];
+};
+
 export type ResearchResponse = {
   research: { enabled: boolean; reason: string | null };
   latest_run: ResearchRun | null;
@@ -722,6 +750,7 @@ export const api = {
   createReport: (body: { kind: "individual" | "category"; category_id: string; finalist_id?: string }) =>
     request<ReportRecord>("/reports", json("POST", body)),
   reportUrl: (id: string) => `/api/v1/reports/${id}/download`,
+  judgesPack: () => request<JudgesPackCategory[]>("/judges-pack"),
   listStudies: (categoryId: string) => request<StudySummary[]>(`/categories/${categoryId}/calibration-studies`),
   eligibleRaters: () => request<{ id: string; display_name: string; role: string }[]>("/calibration/eligible-raters"),
   createStudy: (categoryId: string, name: string, raterIds: string[]) =>

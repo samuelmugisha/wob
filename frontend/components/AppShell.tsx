@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   IconBook,
   IconChevron,
+  IconClipboard,
   IconDashboard,
   IconDocument,
   IconFolder,
@@ -39,6 +40,7 @@ const NAV: NavItem[] = [
     icon: IconFolder,
     match: (p) => p === "/categories" || (p.startsWith("/categories/") && !p.includes("/finalists/")),
   },
+  { href: "/judges-pack", label: "Judges' Pack", icon: IconClipboard, match: (p) => p.startsWith("/judges-pack") },
   { href: "/reports", label: "Reports", icon: IconDocument, match: (p) => p.startsWith("/reports") },
   { href: "/admin/users", label: "Users", icon: IconPeople, match: (p) => p.startsWith("/admin"), show: (me) => me.permissions.manage_users },
   { href: "/account", label: "Settings", icon: IconGear, match: (p) => p.startsWith("/account") },

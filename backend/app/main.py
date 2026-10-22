@@ -13,6 +13,7 @@ from app.api import (
     dashboard,
     data_protection,
     health,
+    judges_pack,
     knowledge_base,
     reports,
     research,
@@ -56,6 +57,7 @@ app.include_router(claims.router)
 app.include_router(research.router)
 app.include_router(assessment.router)
 app.include_router(reports.router)
+app.include_router(judges_pack.router)
 app.include_router(calibration.router)
 app.include_router(data_protection.router)
 app.include_router(dashboard.router)
