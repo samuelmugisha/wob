@@ -4,6 +4,7 @@ python -m app.cli create-user EMAIL "Display Name" ROLE   # prints a set-passwor
 python -m app.cli invite EMAIL                            # new link (signs the user out)
 python -m app.cli auto-accept-research                    # auto-accept earlier research findings
 python -m app.cli match-research-claims                   # link them to the claims they support
+python -m app.cli delete-category CODE [--yes]            # preview, or delete, a whole category
 """
 
 import argparse
@@ -187,6 +188,52 @@ def match_research_claims() -> None:
     )
 
 
+def delete_category(code: str, confirmed: bool) -> None:
+    """Delete an award category and everything in it (e.g. a test category). Without --yes it
+    only shows what would be deleted."""
+    from app.models import AwardCategory
+    from app.services.purge import category_summary, deletion_blockers
+    from app.services.purge import delete_category as run
+
+    with Session(get_engine()) as session:
+        categories = session.scalars(
+            select(AwardCategory)
+            .where(AwardCategory.code == code)
+            .order_by(AwardCategory.award_year)
+        ).all()
+        if not categories:
+            listed = ", ".join(
+                f"{c.code} ({c.name})"
+                for c in session.scalars(select(AwardCategory).order_by(AwardCategory.code))
+            )
+            sys.exit(f"No category with code {code!r}. Categories: {listed or 'none'}")
+        if len(categories) > 1:
+            sys.exit(f"{len(categories)} categories have code {code!r} (different award years).")
+        category = categories[0]
+        name = category.name
+        print(f"{category.code}: {name} ({category.award_year})")
+        for item, count in category_summary(session, category.id).items():
+            if count:
+                print(f"  {item}: {count}")
+        blockers = deletion_blockers(session, category.id)
+        if blockers:
+            sys.exit("Can't delete it: " + "; ".join(blockers) + ".")
+        if not confirmed:
+            print("Nothing deleted. Run again with --yes to delete this category permanently.")
+            return
+        counts = run(
+            session,
+            storage.build_storage(get_settings()),
+            category.id,
+            None,
+            "category deleted by an administrator (delete-category)",
+        )
+    print(
+        f"Deleted {name}: {counts.get('finalists', 0)} finalist(s), "
+        f"{counts.get('files_shredded', 0)} file(s) shredded."
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -198,6 +245,9 @@ def main() -> None:
     reinvite.add_argument("email")
     keygen = commands.add_parser("generate-file-key")
     keygen.add_argument("key_id", nargs="?", default=None)
+    remove = commands.add_parser("delete-category")
+    remove.add_argument("code")
+    remove.add_argument("--yes", action="store_true", help="delete; without it, only preview")
     for name in (
         "encrypt-storage",
         "rotate-file-key",
@@ -224,6 +274,8 @@ def main() -> None:
         auto_accept_research()
     elif args.command == "match-research-claims":
         match_research_claims()
+    elif args.command == "delete-category":
+        delete_category(args.code, args.yes)
     else:
         verify_storage()
 
