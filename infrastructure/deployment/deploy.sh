@@ -22,3 +22,14 @@ $SSH "$HOST" 'cd /opt/wob/infrastructure/deployment \
   && docker compose --env-file /etc/wob/env up -d --no-build --remove-orphans \
   && docker image prune -f >/dev/null \
   && docker compose --env-file /etc/wob/env ps --format "{{.Service}}: {{.Status}}"'
+
+# Once the API is up (so migrations have run), accept credible findings left over from earlier
+# research. It changes nothing when there are none, so it runs on every deploy.
+$SSH "$HOST" 'cd /opt/wob/infrastructure/deployment \
+  && for i in $(seq 60); do
+       docker compose --env-file /etc/wob/env exec -T api python -c \
+         "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/v1/health\")" \
+         >/dev/null 2>&1 && break
+       sleep 5
+     done \
+  && docker compose --env-file /etc/wob/env exec -T api python -m app.cli auto-accept-research'
