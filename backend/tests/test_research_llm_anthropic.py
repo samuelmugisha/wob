@@ -218,7 +218,12 @@ def test_tool_loop_resumes_paused_turns_and_collects_pages() -> None:
     ]
     assert result.pages[0].text == "Jane Doe chairs the Audit Committee."
     assert "Nomination statement" in result.pages[1].text  # PDF text extracted locally
-    assert result.usage == {"input_tokens": 1000, "output_tokens": 400}
+    assert result.usage == {
+        "input_tokens": 1000,
+        "output_tokens": 400,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+    }
 
 
 def test_research_can_use_anthropic_while_the_rest_uses_openrouter() -> None:

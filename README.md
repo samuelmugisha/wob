@@ -246,6 +246,12 @@ Through OpenRouter:
 - External research doesn't work through OpenRouter: it rejects Claude's web-fetch results when a paused research turn is sent back. Set `RESEARCH_PROVIDER=anthropic` with an `ANTHROPIC_API_KEY` so research calls Anthropic directly while claims and assessment stay on OpenRouter.
 - Research costs are kept down by default: it runs on `RESEARCH_MODEL` (default `claude-haiku-5-5`) at `RESEARCH_EFFORT=medium`, with at most 10 searches and 10 page fetches per run, 10,000 tokens of text kept per page (`research_max_*` in `app/config.py`), and prompt caching so resumed runs re-read fetched pages at cache rates. Set `RESEARCH_MODEL=claude-opus-5-5` for stronger identity and source judgement at a higher cost.
 
+### Tracing (LangSmith)
+
+Set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` (and optionally `LANGSMITH_PROJECT`, default `wob-awards-2026`, and `LANGSMITH_ENDPOINT` for an EU workspace) to trace what the worker is doing. Each research run, claim extraction and assessment run is one trace. Inside it are the steps (each criterion assessed, retrieval, matching sources to claims) and every Claude call, with timing, model, token use and cost, retries and errors.
+
+**Metadata only.** The consent form and the data protection review don't cover LangSmith, so traces never contain prompts, evidence, AI output or error messages. Inputs are reduced to internal IDs, outputs to token counts (plus searches and pages for research), and errors to their type. This is enforced in `app/services/tracing.py`, whatever LangSmith's own settings say, and `tests/test_tracing.py` checks it. To see a run's content, look it up by its ID in the app.
+
 ### Data protection controls (Uganda DPPA 2019)
 
 See [docs/operations/data-protection-review.md](docs/operations/data-protection-review.md) for the full review.

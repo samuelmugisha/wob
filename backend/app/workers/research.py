@@ -28,6 +28,7 @@ from app.services.research.llm import ResearchLLM
 from app.services.research.matching import ClaimMatcher, match_after_job
 from app.services.research.research import verify_findings
 from app.services.rubrics import current_rubric
+from app.services.tracing import trace_job
 from app.services.verification import auto_accept_external_source
 
 log = logging.getLogger("wob.research")
@@ -106,6 +107,7 @@ class ResearchPipeline:
         self.process(run_id)
         return True
 
+    @trace_job("research", "run_id")
     def process(self, run_id: uuid.UUID) -> None:
         with self.sessions() as session:
             run = session.get_one(ResearchRun, run_id)

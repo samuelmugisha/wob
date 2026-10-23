@@ -31,6 +31,7 @@ from app.services.claims.extraction import (
 )
 from app.services.claims.llm import ClaimLLM, ExtractionLLMError
 from app.services.research.matching import ClaimMatcher, match_after_job
+from app.services.tracing import trace_job
 from app.services.verification import (
     carry_forward,
     external_evidence_by_wording,
@@ -84,6 +85,7 @@ class ClaimPipeline:
         self.process(run_id)
         return True
 
+    @trace_job("claim extraction", "run_id")
     def process(self, run_id: uuid.UUID) -> None:
         with self.sessions() as session:
             run = session.get_one(ClaimExtractionRun, run_id)

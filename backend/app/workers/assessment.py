@@ -34,6 +34,7 @@ from app.services.assessment.assess import build_input, check_rating
 from app.services.assessment.schema import CriterionRating
 from app.services.claims.llm import AnthropicClaimLLM, ExtractionLLMError
 from app.services.retrieval import Retriever
+from app.services.tracing import trace_job
 
 log = logging.getLogger("wob.assessment")
 
@@ -113,6 +114,7 @@ class AssessmentPipeline:
         self.process(run_id)
         return True
 
+    @trace_job("assessment", "run_id")
     def process(self, run_id: uuid.UUID) -> None:
         with self.sessions() as session:
             run = session.get_one(AssessmentRun, run_id)
@@ -202,6 +204,7 @@ class AssessmentPipeline:
             session.commit()
         log.info("assessment run %s complete", run_id)
 
+    @trace_job("assess criterion", "run_id", "fc_id")
     def _assess_one(
         self, run_id, fc_id, nominee, category, rubric_label, rubric_status, criterion
     ) -> None:

@@ -29,6 +29,7 @@ from app.prompts.claim_matching import PROMPT_VERSION, SYSTEM_PROMPT, user_promp
 from app.services import audit, consent
 from app.services.claims.llm import AnthropicClaimLLM
 from app.services.research.research import passage_around
+from app.services.tracing import trace_job
 
 log = logging.getLogger("wob.research")
 
@@ -171,6 +172,7 @@ def match_criterion_sources(
     return outcome
 
 
+@trace_job("match sources to claims", "finalist_category_id")
 def match_after_job(
     sessions: Callable[[], Session],
     matcher: ClaimMatcher | None,

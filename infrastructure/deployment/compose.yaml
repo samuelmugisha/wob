@@ -28,6 +28,12 @@ x-backend-env: &backend-env
   RESEARCH_MODEL: ${RESEARCH_MODEL:-claude-haiku-5-5}
   RESEARCH_EFFORT: ${RESEARCH_EFFORT:-medium}
   UPLOAD_REQUIRES_CONSENT: ${UPLOAD_REQUIRES_CONSENT:-false}
+  JURY_VERIFIES_SUPPORTING_DOCUMENTS: ${JURY_VERIFIES_SUPPORTING_DOCUMENTS:-true}
+  # LangSmith tracing, metadata only (app/services/tracing.py).
+  LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+  LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+  LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-wob-awards-2026}
+  LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
 
 x-logging: &logging
   driver: json-file
