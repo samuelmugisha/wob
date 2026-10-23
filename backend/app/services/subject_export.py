@@ -114,7 +114,7 @@ def build_export(
                     {
                         "decision": r.decision.value,
                         "notes": r.notes,
-                        "by_role": roles.get(r.reviewer_id),
+                        "by_role": roles.get(r.reviewer_id) if r.reviewer_id else "automatic",
                         "at": _iso(r.created_at),
                     }
                     for r in reviews

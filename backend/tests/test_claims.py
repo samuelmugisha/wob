@@ -141,7 +141,10 @@ def world(coordinator: TestClient, make_pipeline) -> dict:
 
 def claims_pipeline(engine: Engine, respond, **overrides) -> tuple[ClaimPipeline, ScriptedClaimLLM]:
     llm = ScriptedClaimLLM(respond)
-    settings = get_settings().model_copy(update=overrides)
+    # Claims stay unverified for review unless a test turns the jury decision on.
+    settings = get_settings().model_copy(
+        update={"jury_verifies_supporting_documents": False, **overrides}
+    )
     return ClaimPipeline(sessionmaker(engine, expire_on_commit=False), llm, settings), llm
 
 

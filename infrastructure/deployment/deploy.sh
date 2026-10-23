@@ -24,8 +24,8 @@ $SSH "$HOST" 'cd /opt/wob/infrastructure/deployment \
   && docker compose --env-file /etc/wob/env ps --format "{{.Service}}: {{.Status}}"'
 
 # Once the API is up (so migrations have run), accept credible findings left over from earlier
-# research and link them to the claims they support. Both skip work already done, so they run on
-# every deploy.
+# research, link them to the claims they support, and verify claims supporting documents back
+# (jury decision). Each skips work already done, so they run on every deploy.
 $SSH "$HOST" 'cd /opt/wob/infrastructure/deployment \
   && for i in $(seq 60); do
        docker compose --env-file /etc/wob/env exec -T api python -c \
@@ -34,4 +34,5 @@ $SSH "$HOST" 'cd /opt/wob/infrastructure/deployment \
        sleep 5
      done \
   && docker compose --env-file /etc/wob/env exec -T api python -m app.cli auto-accept-research \
-  && docker compose --env-file /etc/wob/env exec -T api python -m app.cli match-research-claims'
+  && docker compose --env-file /etc/wob/env exec -T api python -m app.cli match-research-claims \
+  && docker compose --env-file /etc/wob/env exec -T api python -m app.cli verify-supporting-claims'

@@ -101,6 +101,9 @@ class Settings(BaseSettings):
     claim_max_output_tokens: int = Field(default=64000, gt=0)
     # Passage tokens per extraction request; larger evidence sets are split into batches.
     claim_batch_tokens: int = Field(default=120_000, gt=1000)
+    # Jury decision (23 Oct 2026): claims a supporting document supports are verified on
+    # extraction. Turning it off stops new automatic verifications; earlier ones stand.
+    jury_verifies_supporting_documents: bool = True
 
     # External research (FR-13): web search about the nominee via Claude's server-side tools.
     # Needs the same approval as claim extraction, plus its own switch.

@@ -365,13 +365,15 @@ class QualityLevel(enum.StrEnum):
 
 
 class VerificationReview(Base):
-    """Append-only: a claim's history of reviewer decisions."""
+    """Append-only: a claim's history of reviewer decisions. A decision made automatically under
+    a jury decision records its basis instead of a reviewer."""
 
     __tablename__ = "verification_reviews"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     claim_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("claims.id"))
-    reviewer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    basis: Mapped[str | None]
     previous_status: Mapped[ClaimStatus | None] = mapped_column(
         _pg_enum(ClaimStatus, "claim_status")
     )
@@ -386,7 +388,7 @@ class VerificationReview(Base):
     carried_from: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("verification_reviews.id"))
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
 
-    reviewer: Mapped[User] = relationship(lazy="joined")
+    reviewer: Mapped[User | None] = relationship(lazy="joined")
 
 
 class ContradictionResolution(Base):

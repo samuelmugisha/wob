@@ -179,8 +179,9 @@ export default function ClaimsPanel({ categoryId, finalistId }: { categoryId: st
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>
         Factual claims found in this candidate&apos;s indexed evidence. Every quote has been checked
-        against the source; claims without a verifiable quote are discarded. All claims start
-        unverified until a reviewer checks them.
+        against the source; claims without a verifiable quote are discarded. Under the jury&apos;s decision,
+        claims a supporting document backs are verified automatically; the rest start unverified until a
+        reviewer checks them.
       </p>
 
       {!data.extraction.enabled && (

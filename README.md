@@ -141,6 +141,7 @@ Reviewers, coordinators and admins record a decision on each claim (`POST /api/v
 - **Contradictions:** contradictions found during extraction are resolved with a written resolution (`POST /api/v1/claim-extraction-runs/{id}/contradictions/{index}/resolutions`).
 - **Re-extraction:** a review carries over to an identical claim only when that claim isn't contradicted and still meets its rule. The carried review is marked as such. All other claims need reviewing again.
 - **Progress:** the category page shows how many claims each candidate has had reviewed.
+- **Jury decision: supporting documents are a credible source of truth (23 October 2026).** When claims are extracted, every new claim that a passage of a non-withdrawn *supporting document* supports is marked verified automatically. Claims contradicted by any evidence, and claims backed only by the nomination form, are left for a reviewer. The decision is recorded with no reviewer and basis `jury_supporting_documents` (database-enforced: it can only verify). It shows as "Jury decision (automatic)" and is audited as `claim.verified_automatically`. A reviewer can still change it, and it carries forward on re-extraction like any review. Claims extracted earlier are verified by `make verify-supporting-claims` (`python -m app.cli verify-supporting-claims`), which `deploy.sh` runs after every deploy and which skips claims anyone has already decided on. `JURY_VERIFIES_SUPPORTING_DOCUMENTS=false` stops new automatic verifications.
 
 ### External research (FR-13)
 

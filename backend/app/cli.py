@@ -5,6 +5,7 @@ python -m app.cli invite EMAIL                            # new link (signs the 
 python -m app.cli auto-accept-research                    # auto-accept earlier research findings
 python -m app.cli match-research-claims                   # link them to the claims they support
 python -m app.cli delete-category CODE [--yes]            # preview, or delete, a whole category
+python -m app.cli verify-supporting-claims                # apply the jury decision on documents
 """
 
 import argparse
@@ -234,6 +235,22 @@ def delete_category(code: str, confirmed: bool) -> None:
     )
 
 
+def verify_supporting_claims() -> None:
+    """Apply the jury decision to every candidate: verify the claims a supporting document
+    supports. Claims extracted from now on get it automatically."""
+    from app.models import FinalistCategory
+    from app.services.verification import verify_from_supporting_documents
+
+    if not get_settings().jury_verifies_supporting_documents:
+        print("JURY_VERIFIES_SUPPORTING_DOCUMENTS is off; nothing verified.")
+        return
+    with Session(get_engine()) as session:
+        candidates = session.scalars(select(FinalistCategory.id)).all()
+        verified = sum(verify_from_supporting_documents(session, fc) for fc in candidates)
+        session.commit()
+    print(f"Verified {verified} claim(s) supported by a supporting document.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -255,6 +272,7 @@ def main() -> None:
         "purge-expired",
         "auto-accept-research",
         "match-research-claims",
+        "verify-supporting-claims",
     ):
         commands.add_parser(name)
     args = parser.parse_args()
@@ -274,6 +292,8 @@ def main() -> None:
         auto_accept_research()
     elif args.command == "match-research-claims":
         match_research_claims()
+    elif args.command == "verify-supporting-claims":
+        verify_supporting_claims()
     elif args.command == "delete-category":
         delete_category(args.code, args.yes)
     else:

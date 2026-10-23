@@ -35,6 +35,7 @@ from app.services.verification import (
     carry_forward,
     external_evidence_by_wording,
     reviewed_claims_by_wording,
+    verify_from_supporting_documents,
 )
 
 log = logging.getLogger("wob.claims")
@@ -188,6 +189,11 @@ class ClaimPipeline:
                 prior = previous.get(normalise(c.statement))
                 if prior and carry_forward(session, claim, prior, bool(validated.contradicting)):
                     carried += 1
+            # Jury decision: claims a supporting document supports are verified.
+            jury_verified = 0
+            if self.settings.jury_verifies_supporting_documents:
+                session.flush()
+                jury_verified = verify_from_supporting_documents(session, finalist_category_id)
             run.status = JobStatus.SUCCEEDED
             run.completed_at = now
             run.error = None
@@ -209,6 +215,7 @@ class ClaimPipeline:
                 run_id,
                 claims=len(outcome.claims),
                 carried_forward=carried,
+                jury_verified=jury_verified,
                 discarded=len(outcome.discarded),
                 served_by=outcome.served_by,
                 usage=outcome.usage,

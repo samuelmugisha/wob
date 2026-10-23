@@ -133,6 +133,60 @@ def review_claim(
     return review
 
 
+JURY_BASIS = "jury_supporting_documents"
+JURY_NOTE = (
+    "Verified automatically: the jury decided on 23 October 2026 that supporting documents are "
+    "a credible source of truth, and a supporting document supports this claim."
+)
+
+# Current, never-reviewed, unverified claims of a candidate that a passage of a non-withdrawn
+# supporting document supports and no evidence contradicts.
+_JURY_VERIFIABLE = text(
+    """
+    SELECT cl.id FROM claims cl
+    WHERE cl.finalist_category_id = :fc
+      AND cl.superseded_at IS NULL
+      AND cl.status = 'unverified'
+      AND NOT EXISTS (SELECT 1 FROM verification_reviews v WHERE v.claim_id = cl.id)
+      AND NOT EXISTS (
+          SELECT 1 FROM claim_evidence e WHERE e.claim_id = cl.id AND e.relation = 'contradicts')
+      AND EXISTS (
+          SELECT 1 FROM claim_evidence e
+          JOIN document_chunks c ON c.id = e.chunk_id
+          JOIN documents d ON d.id = c.document_id
+          WHERE e.claim_id = cl.id AND e.relation = 'supports'
+            AND d.source_type = 'supporting_document' AND d.withdrawn_at IS NULL)
+    ORDER BY cl.created_at, cl.id
+    """
+)
+
+
+def verify_from_supporting_documents(session: Session, finalist_category_id: uuid.UUID) -> int:
+    """Apply the jury decision to one candidate: verify each claim a supporting document
+    supports, unless a reviewer has already decided on it or evidence contradicts it. Returns how
+    many were verified; the caller commits."""
+    verified = 0
+    for claim_id in session.scalars(_JURY_VERIFIABLE, {"fc": finalist_category_id}).all():
+        claim = session.get_one(Claim, claim_id)
+        session.add(
+            VerificationReview(
+                id=uuid.uuid4(),
+                claim_id=claim.id,
+                reviewer_id=None,
+                basis=JURY_BASIS,
+                previous_status=claim.status,
+                decision=ClaimStatus.VERIFIED,
+                notes=JURY_NOTE,
+            )
+        )
+        claim.status = ClaimStatus.VERIFIED
+        audit.record(
+            session, None, "claim.verified_automatically", "claim", claim.id, basis=JURY_BASIS
+        )
+        verified += 1
+    return verified
+
+
 def latest_reviews(
     session: Session, claim_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, VerificationReview]:
@@ -197,6 +251,7 @@ def carry_forward(
             id=uuid.uuid4(),
             claim_id=claim.id,
             reviewer_id=old.reviewer_id,
+            basis=old.basis,
             previous_status=claim.status,
             decision=old.decision,
             notes=note,

@@ -54,8 +54,8 @@ Reviewer = Annotated[User, Depends(require_roles(*REVIEWER_ROLES))]
 def _review_out(review: VerificationReview) -> ReviewOut:
     return ReviewOut(
         id=review.id,
-        reviewer=review.reviewer.display_name,
-        reviewer_role=review.reviewer.role.value,
+        reviewer=review.reviewer.display_name if review.reviewer else "Jury decision",
+        reviewer_role=review.reviewer.role.value if review.reviewer else "automatic",
         previous_status=review.previous_status,
         decision=review.decision,
         notes=review.notes,
