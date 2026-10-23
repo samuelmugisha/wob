@@ -298,6 +298,7 @@ export type JudgesPackCategory = {
   ranked_at: string | null;
   production: boolean;
   hidden_for_calibration: boolean;
+  scale_high: number;
   category_report: JudgesPackReport | null;
   finalists: JudgesPackFinalist[];
 };
@@ -318,11 +319,27 @@ export type Criterion = {
   position: number;
 };
 
+export type RatingScale = "one_to_five" | "zero_to_three";
+
+export type ScaleLevel = { rating: number; label: string; definition: string };
+
+export const SCALE_RANGE: Record<RatingScale, { low: number; high: number; label: string }> = {
+  one_to_five: { low: 1, high: 5, label: "1–5" },
+  zero_to_three: { low: 0, high: 3, label: "0–3" },
+};
+
+/** Colour class for a rating by its place on its scale, so 3 of 3 reads like 5 of 5. */
+export function ratingTone(value: number, scale: RatingScale = "one_to_five"): string {
+  return scale === "zero_to_three" ? ["r1", "r2", "r4", "r5"][value] ?? "r3" : `r${value}`;
+}
+
 export type Rubric = {
   id: string;
   version: number;
   status: "draft" | "approved" | "frozen";
   weighting: "equal" | "weighted";
+  scale: RatingScale;
+  scale_levels: ScaleLevel[];
   notes: string | null;
   approved_at: string | null;
   frozen_at: string | null;
@@ -411,6 +428,7 @@ export type Ranking = {
   rubric_status: Rubric["status"];
   production: boolean;
   weighting: Rubric["weighting"];
+  scale: RatingScale;
   calculation_version: string;
   is_provisional: boolean;
   criteria: Criterion[];
@@ -512,6 +530,7 @@ export type Dashboard = {
     rank: number | null;
     is_tie: boolean;
     score_display: string | null;
+    scale_high: number;
     strengths: string[];
     production: boolean;
   }[];
@@ -742,11 +761,21 @@ export const api = {
   listRubrics: (categoryId: string) => request<Rubric[]>(`/categories/${categoryId}/rubrics`),
   createRubric: (
     categoryId: string,
-    body: { use_template?: boolean; criteria?: CriterionInput[]; weighting?: Rubric["weighting"] },
+    body: {
+      use_template?: boolean;
+      criteria?: CriterionInput[];
+      weighting?: Rubric["weighting"];
+      scale?: RatingScale;
+    },
   ) => request<Rubric>(`/categories/${categoryId}/rubrics`, json("POST", body)),
   updateRubric: (
     rubricId: string,
-    body: { criteria: CriterionInput[]; weighting: Rubric["weighting"]; notes: string | null },
+    body: {
+      criteria: CriterionInput[];
+      weighting: Rubric["weighting"];
+      notes: string | null;
+      scale?: RatingScale;
+    },
   ) => request<Rubric>(`/rubrics/${rubricId}`, json("PUT", body)),
   approveRubric: (rubricId: string) =>
     request<Rubric>(`/rubrics/${rubricId}/approve`, { method: "POST" }),
@@ -788,7 +817,9 @@ export const api = {
   createStudy: (categoryId: string, name: string, raterIds: string[]) =>
     request<StudySummary>("/calibration-studies", json("POST", { category_id: categoryId, name, rater_ids: raterIds })),
   studyItems: (studyId: string) =>
-    request<{ study: StudySummary; items: WorksheetItem[] }>(`/calibration-studies/${studyId}/items`),
+    request<{ study: StudySummary; scale_levels: ScaleLevel[]; items: WorksheetItem[] }>(
+      `/calibration-studies/${studyId}/items`,
+    ),
   saveCalibrationRating: (studyId: string, itemId: string, rating: number, notes?: string) =>
     request<{ saved: boolean }>(`/calibration-studies/${studyId}/ratings`, json("PUT", { item_id: itemId, rating, notes })),
   submitCalibration: (studyId: string) =>

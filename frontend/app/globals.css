@@ -252,13 +252,13 @@ table.ranking .badge { margin-left: 6px; }
 .calibration-new input[type="checkbox"] { width: auto; }
 .calibration-results { margin-top: 10px; }
 .worksheet-item { border-top: 1px solid var(--border); padding: 12px 0; display: flex; flex-direction: column; gap: 6px; }
-.scale { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.scale { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
 .scale-option { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; padding: 6px 4px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
 .scale-option input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .scale-option.chosen { border-color: var(--accent); background: var(--accent-soft); }
 .scale-option:focus-within { outline: 2px solid var(--accent); }
 .rating-num { font-weight: 600; font-size: 16px; }
-@media (max-width: 600px) { .scale { grid-template-columns: repeat(5, minmax(0, 1fr)); } .scale-option .small { display: none; } }
+@media (max-width: 600px) { .scale-option .small { display: none; } }
 .button-link { display: inline-block; border-radius: 6px; padding: 7px 14px; background: var(--accent); color: var(--accent-text); font-weight: 500; text-decoration: none; }
 .button-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 

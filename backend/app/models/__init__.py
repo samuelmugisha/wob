@@ -139,6 +139,8 @@ class RubricVersion(Base):
     weighting: Mapped[WeightingMode] = mapped_column(
         _pg_enum(WeightingMode, "weighting_mode"), default=WeightingMode.EQUAL
     )
+    # app.services.scales.RatingScale: 0-3 for new versions, 1-5 for the original ones.
+    scale: Mapped[str] = mapped_column(default="zero_to_three")
     eligibility_rules: Mapped[list[Any]] = mapped_column(JSONB, default=list)
     notes: Mapped[str | None]
     approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -554,7 +556,8 @@ class CriterionAssessment(Base):
 
     @property
     def effective_rating(self) -> int:
-        return self.reviewer_rating or self.rating
+        # 0 is a real rating on the 0-3 scale, so test for None rather than falsiness.
+        return self.rating if self.reviewer_rating is None else self.reviewer_rating
 
 
 class AssessmentCitation(Base):

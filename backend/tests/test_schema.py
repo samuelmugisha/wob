@@ -140,11 +140,14 @@ def test_claim_cannot_cite_another_finalists_evidence(conn: Connection, world) -
     assert_rejected(conn, sql, "foreign key", claim=claim, fc=world["fc_b"], chunk=world["chunk_b"])
 
 
-def make_assessment_context(conn: Connection, world) -> tuple[uuid.UUID, uuid.UUID]:
+def make_assessment_context(
+    conn: Connection, world, scale: str = "one_to_five"
+) -> tuple[uuid.UUID, uuid.UUID]:
     rubric = insert(
         conn,
-        "INSERT INTO rubric_versions (category_id, version) VALUES (:c, 1) RETURNING id",
+        "INSERT INTO rubric_versions (category_id, version, scale) VALUES (:c, 1, :s) RETURNING id",
         c=world["category"],
+        s=scale,
     )
     criterion = insert(
         conn,
@@ -166,9 +169,13 @@ def make_assessment_context(conn: Connection, world) -> tuple[uuid.UUID, uuid.UU
     return run, criterion
 
 
-@pytest.mark.parametrize("rating", [0, 6])
-def test_ratings_outside_official_scale_rejected(conn: Connection, world, rating: int) -> None:
-    run, criterion = make_assessment_context(conn, world)
+@pytest.mark.parametrize(
+    ("scale", "rating"), [("one_to_five", 0), ("one_to_five", 6), ("zero_to_three", 4)]
+)
+def test_ratings_outside_the_rubric_scale_rejected(
+    conn: Connection, world, scale: str, rating: int
+) -> None:
+    run, criterion = make_assessment_context(conn, world, scale)
     assert_rejected(
         conn,
         """
@@ -176,12 +183,28 @@ def test_ratings_outside_official_scale_rejected(conn: Connection, world, rating
                                            rationale, sufficiency)
         VALUES (:run, :fc, :crit, :rating, 'n/a', 'insufficient')
         """,
-        "check constraint",
+        "outside the rubric",
         run=run,
         fc=world["fc_a"],
         crit=criterion,
         rating=rating,
     )
+
+
+def test_zero_is_a_rating_on_the_zero_to_three_scale(conn: Connection, world) -> None:
+    run, criterion = make_assessment_context(conn, world, "zero_to_three")
+    conn.execute(
+        text(
+            "INSERT INTO criterion_assessments (run_id, finalist_category_id, criterion_id, "
+            "rating, rationale, sufficiency) VALUES (:run, :fc, :crit, 0, 'n/a', 'insufficient')"
+        ),
+        {"run": run, "fc": world["fc_a"], "crit": criterion},
+    )
+    new_version = conn.execute(
+        text("INSERT INTO rubric_versions (category_id, version) VALUES (:c, 2) RETURNING scale"),
+        {"c": world["category"]},
+    ).scalar_one()
+    assert new_version == "zero_to_three"  # the board's scale is the default for new versions
 
 
 def test_citation_cannot_reference_another_finalist(conn: Connection, world) -> None:

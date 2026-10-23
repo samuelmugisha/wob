@@ -23,6 +23,8 @@ import {
   initials,
   type Me,
   type ResearchResponse,
+  type RatingScale,
+  SCALE_RANGE,
 } from "@/lib/api";
 
 const TABS = [
@@ -34,15 +36,21 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-function ScoreCircle({ score }: { score: string | null }) {
+function ScoreCircle({ score, high }: { score: string | null; high: number }) {
   return (
-    <div className="score-circle" aria-label={score ? `Overall score ${score} out of 5` : "No overall score"}>
+    <div className="score-circle" aria-label={score ? `Overall score ${score} out of ${high}` : "No overall score"}>
       <span>{score ?? "—"}</span>
     </div>
   );
 }
 
-function scoreWords(score: number): string {
+function scoreWords(score: number, scale: RatingScale): string {
+  if (scale === "zero_to_three") {
+    if (score >= 2.5) return "Excellent: strong, well-evidenced across the criteria.";
+    if (score >= 1.5) return "Good: clear evidence across the criteria.";
+    if (score >= 0.5) return "Poor: weak or partial evidence across the criteria.";
+    return "None: little evidence for the criteria.";
+  }
   if (score >= 4.5) return "Exceptional, well-evidenced across the criteria.";
   if (score >= 3.5) return "Strong evidence across the criteria.";
   if (score >= 2.5) return "Adequate evidence across the criteria.";
@@ -70,6 +78,8 @@ function EvidenceSummary({
 
   const ranking = rankings?.hidden_for_calibration ? null : rankings?.ranking;
   const entry = ranking?.entries.find((e) => e.finalist_id === finalistId) ?? null;
+  const scale = ranking?.scale ?? "one_to_five";
+  const high = SCALE_RANGE[scale].high;
   const active = (documents ?? []).filter((d) => !d.withdrawn_at);
   const accepted = research?.findings.filter((f) => f.reviewer_outcome === "accepted").length ?? 0;
 
@@ -92,7 +102,7 @@ function EvidenceSummary({
                       {c.name}
                     </span>
                     <span className="crit-track">
-                      <span className="crit-fill" style={{ width: `${((value ?? 0) / 5) * 100}%` }} />
+                      <span className="crit-fill" style={{ width: `${((value ?? 0) / high) * 100}%` }} />
                     </span>
                     <span className="crit-value">{value ?? "—"}</span>
                   </li>
@@ -109,10 +119,10 @@ function EvidenceSummary({
           <section className="card">
             <h2>Overall AI Score</h2>
             <div className="overall">
-              <ScoreCircle score={entry?.score_display ?? null} />
+              <ScoreCircle score={entry?.score_display ?? null} high={high} />
               <div className="small">
-                <div className="muted">/ 5{entry?.rank ? ` · rank ${entry.rank}${entry.is_tie ? " (tie)" : ""}` : ""}</div>
-                {entry?.score ? scoreWords(Number(entry.score)) : "Not scored yet."}
+                <div className="muted">/ {high}{entry?.rank ? ` · rank ${entry.rank}${entry.is_tie ? " (tie)" : ""}` : ""}</div>
+                {entry?.score ? scoreWords(Number(entry.score), scale) : "Not scored yet."}
               </div>
             </div>
           </section>
@@ -295,7 +305,7 @@ export default function CandidatePage() {
               </div>
               <div>
                 <dt>Overall AI score</dt>
-                <dd>{entry?.score_display ? `${entry.score_display} / 5` : "—"}</dd>
+                <dd>{entry?.score_display ? `${entry.score_display} / ${SCALE_RANGE[rankings?.ranking?.scale ?? "one_to_five"].high}` : "—"}</dd>
               </div>
             </dl>
             {finalist?.eligibility_flagged && <div className="notice warning">Eligibility has been flagged for review.</div>}

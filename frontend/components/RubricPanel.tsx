@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api, type CriterionInput, type Me, type Rubric } from "@/lib/api";
+import { api, type CriterionInput, type Me, type Rubric, type RatingScale, SCALE_RANGE } from "@/lib/api";
 
 const STATUS_TEXT: Record<Rubric["status"], string> = {
   draft: "Draft: editable; rankings are practice only",
@@ -15,6 +15,7 @@ function slug(text: string): string {
 
 function RubricEditor({ rubric, onSaved, onCancel }: { rubric: Rubric; onSaved: () => void; onCancel: () => void }) {
   const [weighting, setWeighting] = useState<Rubric["weighting"]>(rubric.weighting);
+  const [scale, setScale] = useState<RatingScale>(rubric.scale);
   const [notes, setNotes] = useState(rubric.notes ?? "");
   const [rows, setRows] = useState<CriterionInput[]>(
     rubric.criteria.map((c) => ({
@@ -39,6 +40,7 @@ function RubricEditor({ rubric, onSaved, onCancel }: { rubric: Rubric; onSaved: 
     try {
       await api.updateRubric(rubric.id, {
         weighting,
+        scale,
         notes: notes.trim() || null,
         criteria: rows.map((r) => ({
           code: r.code || slug(r.name),
@@ -66,6 +68,15 @@ function RubricEditor({ rubric, onSaved, onCancel }: { rubric: Rubric; onSaved: 
             <option value="weighted">Weighted</option>
           </select>
         </div>
+        {rubric.status === "draft" && (
+          <div className="field" style={{ flexGrow: 0, flexBasis: 260 }}>
+            <label htmlFor="scale">Rating scale</label>
+            <select id="scale" value={scale} onChange={(e) => setScale(e.target.value as RatingScale)}>
+              <option value="zero_to_three">0–3: None, Poor, Good, Excellent</option>
+              <option value="one_to_five">1–5: the original scale</option>
+            </select>
+          </div>
+        )}
         <div className="field">
           <label htmlFor="rubric-notes">Notes</label>
           <input id="rubric-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -230,7 +241,9 @@ export default function RubricPanel({
             </strong>
             {rubric.notes && <div className="small">{rubric.notes}</div>}
             <div className="small">
-              {rubric.weighting === "equal" ? "Equal weighting" : "Weighted scoring"} · official 1–5 scale
+              {rubric.weighting === "equal" ? "Equal weighting" : "Weighted scoring"} ·{" "}
+              {SCALE_RANGE[rubric.scale].label} scale:{" "}
+              {rubric.scale_levels.map((l) => `${l.rating} ${l.label}`).join(", ")}
             </div>
           </div>
           {editing ? (

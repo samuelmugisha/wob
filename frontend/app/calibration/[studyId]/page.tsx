@@ -3,21 +3,14 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { api, type StudySummary, type WorksheetItem } from "@/lib/api";
-
-const SCALE: [number, string][] = [
-  [1, "Not demonstrated / no evidence"],
-  [2, "Weak evidence"],
-  [3, "Adequate evidence"],
-  [4, "Strong evidence"],
-  [5, "Exceptional, well-evidenced"],
-];
+import { api, type ScaleLevel, type StudySummary, type WorksheetItem } from "@/lib/api";
 
 /** A rater's blind worksheet: evidence-based ratings without seeing the AI's (FR-15). */
 export default function CalibrationWorksheet() {
   const { studyId } = useParams<{ studyId: string }>();
   const [study, setStudy] = useState<StudySummary | null>(null);
   const [items, setItems] = useState<WorksheetItem[] | null>(null);
+  const [levels, setLevels] = useState<ScaleLevel[]>([]);
   const [attest, setAttest] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +19,7 @@ export default function CalibrationWorksheet() {
       (data) => {
         setStudy(data.study);
         setItems(data.items);
+        setLevels(data.scale_levels);
       },
       (e: Error) => setError(e.message),
     );
@@ -90,8 +84,12 @@ export default function CalibrationWorksheet() {
                   <div className="small muted">Evidence expected: {item.criterion.evidence_expectations}</div>
                 )}
                 <div className="scale">
-                  {SCALE.map(([value, label]) => (
-                    <label key={value} className={`scale-option${item.rating === value ? " chosen" : ""}`} title={label}>
+                  {levels.map(({ rating: value, label, definition }) => (
+                    <label
+                      key={value}
+                      className={`scale-option${item.rating === value ? " chosen" : ""}`}
+                      title={`${label}: ${definition}`}
+                    >
                       <input
                         type="radio"
                         name={`r-${item.id}`}

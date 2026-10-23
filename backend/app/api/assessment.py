@@ -52,6 +52,7 @@ from app.services.assessment.review import AssessmentReviewRejected, review_asse
 from app.services.calibration import is_blinded, latest_result
 from app.services.claims.llm import provider_status
 from app.services.ranking import create_snapshot, display, display_points
+from app.services.scales import RatingScale, scale_of
 
 router = APIRouter(prefix="/api/v1", tags=["assessment and ranking"])
 BLINDED = (
@@ -65,7 +66,8 @@ DISCLAIMER = (
     "AI rankings are advisory. The awards committee retains responsibility for final "
     "deliberation and winner approval."
 )
-# Adjacent finalists closer than this (on the 1-5 scale) are highlighted as close results.
+# Adjacent finalists closer than this on the 1-5 scale (in proportion on other scales) are
+# highlighted as close results.
 CLOSE_MARGIN = Decimal("0.25")
 
 
@@ -103,7 +105,13 @@ def create_rubric(
         criteria, notes = [c.model_dump() for c in body.criteria], body.notes
     try:
         rubric = rubrics.create_draft(
-            session, category_id, user, criteria, weighting=body.weighting, notes=notes
+            session,
+            category_id,
+            user,
+            criteria,
+            weighting=body.weighting,
+            notes=notes,
+            scale=body.scale or RatingScale.ZERO_TO_THREE,
         )
     except rubrics.RubricError as exc:
         raise _http(exc) from exc
@@ -133,6 +141,7 @@ def update_rubric(
             [c.model_dump() for c in body.criteria],
             weighting=body.weighting,
             notes=body.notes,
+            scale=body.scale,
         )
     except rubrics.RubricError as exc:
         raise _http(exc) from exc
@@ -380,6 +389,7 @@ def review(
             body.decision,
             adjusted_rating=body.adjusted_rating,
             notes=body.notes,
+            scale=rubrics.run_scale(session, assessment.run_id),
         )
     except AssessmentReviewRejected as exc:
         raise _http(exc) from exc
@@ -393,6 +403,7 @@ def review(
 
 def _ranking_out(session: Session, snapshot: RankingSnapshot) -> RankingOut:
     rubric = session.get(RubricVersion, snapshot.rubric_version_id)
+    scale = scale_of(rubric.scale)
     names = {
         row.id: row
         for row in session.execute(
@@ -418,7 +429,7 @@ def _ranking_out(session: Session, snapshot: RankingSnapshot) -> RankingOut:
             organisation=names[e.finalist_category_id].organisation,
             score=str(e.score) if e.score is not None else None,
             score_display=display(e.score),
-            points_display=display_points(e.score),
+            points_display=display_points(e.score, scale),
             rank=e.rank,
             is_tie=e.is_tie,
             criteria_assessed=e.criteria_assessed,
@@ -437,7 +448,7 @@ def _ranking_out(session: Session, snapshot: RankingSnapshot) -> RankingOut:
             "difference": display(a.score - b.score),
         }
         for a, b in zip(scored, scored[1:], strict=False)
-        if a.score - b.score <= CLOSE_MARGIN
+        if a.score - b.score <= CLOSE_MARGIN * (scale.high - scale.low) / 4
     ]
     return RankingOut(
         id=snapshot.id,
@@ -447,6 +458,7 @@ def _ranking_out(session: Session, snapshot: RankingSnapshot) -> RankingOut:
         rubric_status=snapshot.rubric_status,
         production=snapshot.rubric_status == RubricStatus.FROZEN,
         weighting=snapshot.weighting,
+        scale=scale.key,
         calculation_version=snapshot.calculation_version,
         is_provisional=snapshot.is_provisional,
         criteria=[CriterionOut.model_validate(c) for c in rubric.criteria],
@@ -538,6 +550,12 @@ def human_rating(
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "this criterion is already rated; review or adjust that rating",
+        )
+    scale = scale_of(rubric.scale)
+    if not scale.contains(body.rating):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"ratings are whole numbers from {scale.low} to {scale.high}",
         )
     now = datetime.now(UTC)
     assessment = CriterionAssessment(

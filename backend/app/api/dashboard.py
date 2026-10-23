@@ -14,6 +14,7 @@ from app.schemas.knowledge_base import DocumentOut
 from app.security.auth import CurrentUser
 from app.services.calibration import is_blinded
 from app.services.ranking import display
+from app.services.scales import scale_of
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 
@@ -46,6 +47,7 @@ class TopRanked(BaseModel):
     rank: int | None
     is_tie: bool
     score_display: str | None
+    scale_high: int
     strengths: list[str]
     production: bool
 
@@ -118,6 +120,7 @@ _LATEST_ENTRIES = text("""
          ORDER BY category_id, created_at DESC
     )
     SELECT l.category_id, c.name AS category_name, l.rubric_version_id, l.rubric_status,
+           (SELECT scale FROM rubric_versions v WHERE v.id = l.rubric_version_id) AS scale,
            f.id AS finalist_id, f.full_name, f.organisation,
            e.rank, e.is_tie, e.score, e.criterion_ratings
       FROM latest l
@@ -147,8 +150,14 @@ def dashboard(session: SessionDep, user: CurrentUser) -> DashboardOut:
     entries.sort(key=lambda r: r["score"], reverse=True)
     top = []
     for r in entries[:TOP_RANKED]:
+        scale = scale_of(r["scale"])
+        # Strengths: the scale's top two levels (4-5 on 1-5, Good and Excellent on 0-3).
         ratings = sorted(
-            ((v, k) for k, v in (r["criterion_ratings"] or {}).items() if v is not None and v >= 4),
+            (
+                (v, k)
+                for k, v in (r["criterion_ratings"] or {}).items()
+                if v is not None and v >= scale.high - 1
+            ),
             reverse=True,
         )
         top.append(
@@ -161,6 +170,7 @@ def dashboard(session: SessionDep, user: CurrentUser) -> DashboardOut:
                 rank=r["rank"],
                 is_tie=r["is_tie"],
                 score_display=display(r["score"]),
+                scale_high=scale.high,
                 strengths=[
                     names.get((r["rubric_version_id"], k), k) for _, k in ratings[:STRENGTHS]
                 ],

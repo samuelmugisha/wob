@@ -3,9 +3,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.models import AssessmentStatus, JobStatus, RubricStatus, WeightingMode
+from app.services.scales import RatingScale, levels_out
 
 
 class CriterionIn(BaseModel):
@@ -21,6 +22,8 @@ class RubricIn(BaseModel):
     criteria: list[CriterionIn] = []
     weighting: WeightingMode = WeightingMode.EQUAL
     notes: str | None = Field(default=None, max_length=4000)
+    # New versions default to 0-3; on an edit, None keeps the version's scale.
+    scale: RatingScale | None = None
 
 
 class UnfreezeIn(BaseModel):
@@ -46,11 +49,17 @@ class RubricOut(BaseModel):
     version: int
     status: RubricStatus
     weighting: WeightingMode
+    scale: RatingScale
     notes: str | None
     approved_at: datetime | None
     frozen_at: datetime | None
     created_at: datetime
     criteria: list[CriterionOut]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def scale_levels(self) -> list[dict[str, object]]:
+        return levels_out(self.scale)
 
 
 class AssessmentRunIn(BaseModel):
@@ -63,7 +72,7 @@ class HumanRatingIn(BaseModel):
     run_id: uuid.UUID
     finalist_id: uuid.UUID
     criterion_id: uuid.UUID
-    rating: int = Field(ge=1, le=5)
+    rating: int = Field(ge=0, le=5, description="Checked against the run's rubric scale")
     rationale: str = Field(min_length=10, max_length=4000)
     sufficiency: Literal["sufficient", "limited", "insufficient"]
 
@@ -136,7 +145,9 @@ class CandidateAssessmentsOut(BaseModel):
 
 class AssessmentReviewIn(BaseModel):
     decision: AssessmentStatus
-    adjusted_rating: int | None = Field(default=None, ge=1, le=5)
+    adjusted_rating: int | None = Field(
+        default=None, ge=0, le=5, description="Checked against the run's rubric scale"
+    )
     notes: str | None = Field(default=None, max_length=4000)
 
 
@@ -170,6 +181,7 @@ class RankingOut(BaseModel):
     rubric_status: RubricStatus
     production: bool
     weighting: WeightingMode
+    scale: RatingScale
     calculation_version: str
     is_provisional: bool
     criteria: list[CriterionOut]

@@ -118,7 +118,7 @@ export default function JudgesPackPage() {
                         {[f.position_title, f.organisation].filter(Boolean).join(", ") || " "}
                       </div>
                       <div className="pack-score">
-                        {f.score_display} <span className="muted small">/ 5 · {f.points_display} points</span>
+                        {f.score_display} <span className="muted small">/ {category.scale_high} · {f.points_display} points</span>
                       </div>
                       {f.unreviewed_criteria.length > 0 && (
                         <div className="small">

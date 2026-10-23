@@ -318,7 +318,7 @@ def render_individual(data: ReportData, f: FinalistReport) -> bytes:
             [
                 [
                     p("Provisional rank", "cell"),
-                    p("Score (1–5)", "cell"),
+                    p(f"Score ({data.scale.label})", "cell"),
                     p("Out of 100", "cell"),
                     p("Criteria rated", "cell"),
                     p("Awaiting review", "cell"),

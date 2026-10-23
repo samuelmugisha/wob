@@ -1,18 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, type CriterionAssessment, formatDate, type Me } from "@/lib/api";
-
-const SCALE: Record<number, string> = {
-  1: "Not demonstrated / no evidence",
-  2: "Weak evidence",
-  3: "Adequate evidence",
-  4: "Strong evidence",
-  5: "Exceptional, well-evidenced",
-};
+import {
+  api,
+  type CriterionAssessment,
+  formatDate,
+  type Me,
+  ratingTone,
+  SCALE_RANGE,
+  type ScaleLevel,
+} from "@/lib/api";
 
 const FLAG_TEXT: Record<string, string> = {
-  uncited_rating: "No verified citation supports this rating: it cannot be approved above 1",
+  uncited_rating: "No verified citation supports this rating: it cannot be approved at this level",
   citations_discarded: "Some citations could not be verified and were dropped",
   contradicting_evidence: "Contradicting evidence was cited",
   rubric_not_frozen: "Rubric not frozen: practice assessment",
@@ -23,7 +23,7 @@ const FLAG_TEXT: Record<string, string> = {
   "retrieval:low_relevance": "Even the best passage scored low for relevance",
 };
 
-function Review({ item, onDone }: { item: CriterionAssessment; onDone: () => void }) {
+function Review({ item, levels, onDone }: { item: CriterionAssessment; levels: ScaleLevel[]; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [adjusted, setAdjusted] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -58,9 +58,9 @@ function Review({ item, onDone }: { item: CriterionAssessment; onDone: () => voi
           <label htmlFor={`adj-${item.id}`}>Rating</label>
           <select id={`adj-${item.id}`} value={adjusted} onChange={(e) => setAdjusted(e.target.value)}>
             <option value="">Keep AI rating ({item.rating})</option>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                Adjust to {n}: {SCALE[n]}
+            {levels.map((l) => (
+              <option key={l.rating} value={l.rating}>
+                Adjust to {l.rating}: {l.label}, {l.definition}
               </option>
             ))}
           </select>
@@ -88,11 +88,13 @@ function HumanRating({
   runId,
   finalistId,
   criterion,
+  levels,
   onDone,
 }: {
   runId: string;
   finalistId: string;
   criterion: { id: string; name: string; description: string };
+  levels: ScaleLevel[];
   onDone: () => void;
 }) {
   const [rating, setRating] = useState("");
@@ -127,9 +129,9 @@ function HumanRating({
           <label htmlFor={`hr-${criterion.id}`}>Rating</label>
           <select id={`hr-${criterion.id}`} value={rating} onChange={(e) => setRating(e.target.value)} required>
             <option value="">Choose…</option>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n}: {SCALE[n]}
+            {levels.map((l) => (
+              <option key={l.rating} value={l.rating}>
+                {l.rating}: {l.label}, {l.definition}
               </option>
             ))}
           </select>
@@ -184,6 +186,9 @@ export default function AssessmentPanel({ categoryId, finalistId }: { categoryId
 
   if (!data) return error ? <div className="notice error">{error}</div> : null;
   const canReview = me?.permissions.review_claims ?? false;
+  const scale = data.rubric?.scale ?? "one_to_five";
+  const levels = data.rubric?.scale_levels ?? [];
+  const levelName = (n: number) => levels.find((l) => l.rating === n)?.label ?? String(n);
   const unrated =
     data.run && data.rubric && canReview && !data.hidden_for_calibration
       ? data.rubric.criteria.filter((c) => !data.items.some((i) => i.criterion_id === c.id))
@@ -193,7 +198,7 @@ export default function AssessmentPanel({ categoryId, finalistId }: { categoryId
     <section className="card">
       <h2>Criterion assessment</h2>
       <p className="muted small" style={{ marginTop: -6 }}>
-        AI-proposed ratings on the committee&apos;s 1–5 scale, each with the evidence it cites. Advisory
+        AI-proposed ratings on the rubric&apos;s {SCALE_RANGE[scale].label} scale, each with the evidence it cites. Advisory
         only: reviewers check each rating; the committee decides.
       </p>
       {data.hidden_for_calibration ? (
@@ -218,7 +223,7 @@ export default function AssessmentPanel({ categoryId, finalistId }: { categoryId
         </div>
       )}
       {unrated.map((c) => (
-        <HumanRating key={c.id} runId={data.run!.id} finalistId={finalistId} criterion={c} onDone={load} />
+        <HumanRating key={c.id} runId={data.run!.id} finalistId={finalistId} criterion={c} levels={levels} onDone={load} />
       ))}
       {data.items.map((item) => (
         <article key={item.id} className="claim assessment">
@@ -226,13 +231,13 @@ export default function AssessmentPanel({ categoryId, finalistId }: { categoryId
             <span>
               <strong>{item.criterion_name}</strong>
             </span>
-            <span className={`rating r${item.effective_rating}`} title={SCALE[item.effective_rating]}>
+            <span className={`rating ${ratingTone(item.effective_rating, scale)}`} title={levelName(item.effective_rating)}>
               {item.effective_rating}
             </span>
           </div>
           <div className="small muted">
             {item.source === "human" ? "Human rating · " : ""}
-            {SCALE[item.effective_rating]} · evidence {item.sufficiency}
+            {levelName(item.effective_rating)} · evidence {item.sufficiency}
             {item.reviewer_rating !== null && ` · AI proposed ${item.rating}, adjusted by reviewer`}
           </div>
           <p className="rationale">{item.rationale}</p>
@@ -277,7 +282,7 @@ export default function AssessmentPanel({ categoryId, finalistId }: { categoryId
                 {item.review_notes && `: ${item.review_notes}`}
               </span>
             )}{" "}
-            {canReview && <Review item={item} onDone={load} />}
+            {canReview && <Review item={item} levels={levels} onDone={load} />}
           </div>
         </article>
       ))}

@@ -139,7 +139,8 @@ def mixed_world(coordinator: TestClient, make_pipeline) -> dict:
         )
     drain(make_pipeline())
     rubric = coordinator.post(
-        f"/api/v1/categories/{category['id']}/rubrics", json={"use_template": True}
+        f"/api/v1/categories/{category['id']}/rubrics",
+        json={"use_template": True, "scale": "one_to_five"},
     ).json()
     return {
         "category": category,

@@ -11,6 +11,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AssessmentRun,
     CalibrationItem,
     CriterionAssessment,
     Role,
@@ -21,6 +22,7 @@ from app.models import (
     WeightingMode,
 )
 from app.services import audit
+from app.services.scales import RatingScale, Scale, scale_of
 
 TEMPLATE_NOTE = (
     "DRAFT TEMPLATE: illustrative criteria to exercise the system. They are not committee "
@@ -106,6 +108,7 @@ def create_draft(
     *,
     weighting: WeightingMode = WeightingMode.EQUAL,
     notes: str | None = None,
+    scale: RatingScale = RatingScale.ZERO_TO_THREE,
 ) -> RubricVersion:
     version = (
         session.scalar(
@@ -114,7 +117,12 @@ def create_draft(
         or 0
     ) + 1
     rubric = RubricVersion(
-        id=uuid.uuid4(), category_id=category_id, version=version, weighting=weighting, notes=notes
+        id=uuid.uuid4(),
+        category_id=category_id,
+        version=version,
+        weighting=weighting,
+        notes=notes,
+        scale=scale.value,
     )
     session.add(rubric)
     session.flush()
@@ -209,6 +217,7 @@ def update_rubric(
     *,
     weighting: WeightingMode,
     notes: str | None,
+    scale: RatingScale | None = None,
 ) -> None:
     """Edit a draft; administrators may also amend an approved rubric. An amendment stays
     approved under the administrator's name, with the before and after recorded in the audit
@@ -225,6 +234,14 @@ def update_rubric(
             f"rubric version {rubric.version} is approved; only an administrator can amend it",
             forbidden=True,
         )
+    if scale is not None and scale.value != rubric.scale:
+        if amending or _rated(session, [c.id for c in rubric.criteria]):
+            raise RubricError(
+                "the rating scale can only change on a draft nobody has rated yet; create a "
+                "new rubric version",
+                conflict=True,
+            )
+        rubric.scale = scale.value
     if amending:
         _admin_change(session)
     before = [_criterion_dump(c) for c in rubric.criteria]
@@ -311,3 +328,14 @@ def current_rubric(session: Session, category_id: uuid.UUID) -> RubricVersion | 
     ).all()
     frozen = [r for r in rubrics if r.status == RubricStatus.FROZEN]
     return frozen[0] if frozen else (rubrics[0] if rubrics else None)
+
+
+def run_scale(session: Session, run_id: uuid.UUID) -> Scale:
+    """The rating scale of an assessment run: its rubric version's."""
+    return scale_of(
+        session.scalar(
+            select(RubricVersion.scale)
+            .join(AssessmentRun, AssessmentRun.rubric_version_id == RubricVersion.id)
+            .where(AssessmentRun.id == run_id)
+        )
+    )

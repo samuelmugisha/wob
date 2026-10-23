@@ -87,7 +87,8 @@ def world(coordinator: TestClient, make_pipeline) -> dict:
         people[name] = person
     drain(make_pipeline())
     response = coordinator.post(
-        f"/api/v1/categories/{category['id']}/rubrics", json={"use_template": True}
+        f"/api/v1/categories/{category['id']}/rubrics",
+        json={"use_template": True, "scale": "one_to_five"},
     )
     assert response.status_code == 201, response.text
     return {"category": category, "people": people, "rubric": response.json()}
@@ -161,7 +162,8 @@ def test_rubric_lifecycle_and_permissions(client_for, coordinator, world) -> Non
     assert frozen["status"] == "frozen" and frozen["frozen_at"]
 
     second = coordinator.post(
-        f"/api/v1/categories/{world['category']['id']}/rubrics", json={"use_template": True}
+        f"/api/v1/categories/{world['category']['id']}/rubrics",
+        json={"use_template": True, "scale": "one_to_five"},
     ).json()
     assert second["version"] == 2
     # Assessments use the latest frozen rubric, not a newer draft.

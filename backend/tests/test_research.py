@@ -481,7 +481,8 @@ def test_candidate_without_documents_is_researched_by_criterion(
     category = make_category(coordinator)
     jane = make_candidate(coordinator, category["id"], "Jane Doe")
     rubric = coordinator.post(
-        f"/api/v1/categories/{category['id']}/rubrics", json={"use_template": True}
+        f"/api/v1/categories/{category['id']}/rubrics",
+        json={"use_template": True, "scale": "one_to_five"},
     ).json()
     criteria = rubric["criteria"]
     base = f"/api/v1/categories/{category['id']}/finalists/{jane['id']}"
@@ -559,7 +560,8 @@ def public_evidence(world, statement: str) -> list[dict]:
 
 def test_criterion_sources_are_linked_to_the_claims_they_support(world, coordinator) -> None:
     coordinator.post(
-        f"/api/v1/categories/{world['category']['id']}/rubrics", json={"use_template": True}
+        f"/api/v1/categories/{world['category']['id']}/rubrics",
+        json={"use_template": True, "scale": "one_to_five"},
     )
     matcher = ScriptedClaimMatcher(match_respond)
     body, _ = run_research(world, criterion_respond, matcher)
@@ -597,7 +599,8 @@ def test_criterion_sources_are_linked_to_the_claims_they_support(world, coordina
 
 def test_earlier_criterion_sources_can_be_matched(world, coordinator, monkeypatch) -> None:
     coordinator.post(
-        f"/api/v1/categories/{world['category']['id']}/rubrics", json={"use_template": True}
+        f"/api/v1/categories/{world['category']['id']}/rubrics",
+        json={"use_template": True, "scale": "one_to_five"},
     )
     run_research(world, criterion_respond)  # no matcher: research from before matching existed
     assert not public_evidence(world, AUDIT)

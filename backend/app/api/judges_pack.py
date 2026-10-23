@@ -21,11 +21,13 @@ from app.models import (
     Report,
     ReportKind,
     RubricStatus,
+    RubricVersion,
     User,
 )
 from app.security.auth import CurrentUser
 from app.services.calibration import is_blinded
 from app.services.ranking import display, display_points
+from app.services.scales import scale_of
 
 router = APIRouter(prefix="/api/v1", tags=["judges pack"])
 
@@ -69,6 +71,7 @@ class PackCategory(BaseModel):
     ranked_at: datetime | None = None
     production: bool = False
     hidden_for_calibration: bool = False
+    scale_high: int = 5
     category_report: PackReport | None = None
     finalists: list[PackFinalist] = []
 
@@ -108,6 +111,8 @@ def _category(session: Session, category: AwardCategory, user: User) -> PackCate
     out.ranking_id = snapshot.id
     out.ranked_at = snapshot.created_at
     out.production = snapshot.rubric_status == RubricStatus.FROZEN
+    scale = scale_of(session.get_one(RubricVersion, snapshot.rubric_version_id).scale)
+    out.scale_high = scale.high
     out.category_report = _latest_report(session, snapshot.id, ReportKind.CATEGORY)
 
     # Ties at third place bring in everyone sharing it.
@@ -133,7 +138,7 @@ def _category(session: Session, category: AwardCategory, user: User) -> PackCate
                 rank=entry.rank,
                 is_tie=entry.is_tie,
                 score_display=display(entry.score),
-                points_display=display_points(entry.score),
+                points_display=display_points(entry.score, scale),
                 unreviewed_criteria=entry.unreviewed_criteria,
                 report=_latest_report(session, snapshot.id, ReportKind.INDIVIDUAL, fc.id),
                 documents=[

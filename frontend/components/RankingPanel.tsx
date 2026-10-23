@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, type CategoryRankings, formatDate, type Me } from "@/lib/api";
+import { api, type CategoryRankings, formatDate, type Me, type RatingScale, ratingTone, SCALE_RANGE } from "@/lib/api";
 
-function ratingClass(value: number | null, unreviewed: boolean): string {
+function ratingClass(value: number | null, unreviewed: boolean, scale: RatingScale): string {
   if (value === null) return "rating missing";
-  return `rating r${value}${unreviewed ? " unreviewed" : ""}`;
+  return `rating ${ratingTone(value, scale)}${unreviewed ? " unreviewed" : ""}`;
 }
 
 /** Assessment runs and the provisional ranking with its criterion breakdown (FR-09, FR-10). */
@@ -150,7 +150,7 @@ export default function RankingPanel({
                 <tr>
                   <th>Rank</th>
                   <th>Finalist</th>
-                  <th>Score (1–5)</th>
+                  <th>Score ({SCALE_RANGE[ranking.scale].label})</th>
                   <th>/100</th>
                   {ranking.criteria.map((c) => (
                     <th key={c.id} title={c.description} className="criterion-col">
@@ -185,7 +185,7 @@ export default function RankingPanel({
                     {ranking.criteria.map((c) => (
                       <td key={c.id}>
                         <span
-                          className={ratingClass(e.ratings[c.code] ?? null, e.unreviewed_criteria.includes(c.code))}
+                          className={ratingClass(e.ratings[c.code] ?? null, e.unreviewed_criteria.includes(c.code), ranking.scale)}
                           title={e.unreviewed_criteria.includes(c.code) ? "Not yet reviewed" : undefined}
                         >
                           {e.ratings[c.code] ?? "—"}

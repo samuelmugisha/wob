@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.services import audit
 from app.services.calibration_metrics import Agreement, Thresholds, agreement, verdict
+from app.services.scales import scale_of
 
 RATER_ROLES = (Role.ADMIN, Role.COMMITTEE, Role.JUDGE, Role.REVIEWER)
 
@@ -153,6 +154,9 @@ def rate(
     notes: str | None,
 ) -> CalibrationRating:
     _rater(session, study, user)
+    scale = scale_of(session.get_one(RubricVersion, study.rubric_version_id).scale)
+    if not scale.contains(rating):
+        raise CalibrationError(f"ratings are whole numbers from {scale.low} to {scale.high}")
     item = session.get(CalibrationItem, item_id)
     if item is None or item.study_id != study.id:
         raise CalibrationError("item not in this study")
@@ -217,13 +221,16 @@ def compute(session: Session, study: CalibrationStudy) -> dict:
             )
         )
     }
-    criteria = {c.id: c.name for c in session.get(RubricVersion, study.rubric_version_id).criteria}
+    rubric = session.get_one(RubricVersion, study.rubric_version_id)
+    criteria = {c.id: c.name for c in rubric.criteria}
+    levels = range(scale_of(rubric.scale).low, scale_of(rubric.scale).high + 1)
     thresholds = Thresholds(**study.thresholds)
 
     def measure(subset: list[CalibrationItem]) -> Agreement:
         return agreement(
             [ai[(i.finalist_category_id, i.criterion_id)] for i in subset],
             {str(u): [ratings.get((i.id, u)) for i in subset] for u in completed},
+            levels,
         )
 
     overall = measure(items)

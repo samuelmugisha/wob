@@ -18,7 +18,7 @@ This system assesses judge-shortlisted finalists using their submitted evidence,
 **Querying.** A query is a rubric criterion, a claim to check, or a search.
 1. Hybrid retrieval searches that finalist's evidence only, by meaning and by exact words.
 2. A reranker picks the 10 best passages.
-3. Claude reads those passages and returns claims or a 1–5 rating, each citing its quotes.
+3. Claude reads those passages and returns claims or a rating on the rubric's scale, each citing its quotes.
 4. Every quote is checked against the passage it cites.
 5. Reviewers approve or adjust each rating before it counts towards the ranking and reports.
 
@@ -160,12 +160,14 @@ Reviewers, coordinators and admins record a decision on each claim (`POST /api/v
 
 **Rubrics.** Each category has versioned rubrics, managed on the category page. Coordinators create and edit drafts; *Start from draft template* gives five illustrative criteria, labelled as such. The committee or an admin approves and then freezes a rubric. A frozen rubric can't be changed (database-enforced), and assessments use the latest frozen version, or the latest draft until one exists.
 
+**Rating scales.** The board moved from the original 1–5 scale to **0–3**: 0 None (no evidence that the criterion is met), 1 Poor (weak, partial or indirect evidence), 2 Good (clear evidence) and 3 Excellent (strong, well-evidenced and outstanding). Each rubric version records its scale. New versions use 0–3, and versions created before the change keep 1–5, so their ratings, rankings and reports stay valid. The scale can be changed on a draft that nobody has rated. The AI prompt, its output schema, reviews, human ratings, calibration, ranking points, reports and the screens all follow the scale of the rubric in use. Any rating above the lowest level (2+ on 1–5, 1+ on 0–3) needs a verified supporting citation to be approved, and the database rejects any rating outside its version's scale.
+
 **Administrator changes.** Only an admin can unfreeze a rubric (back to approved, with a reason recorded in the audit log) or amend an approved one. An amendment stays approved under the admin's name, and the audit log records the criteria before and after. Criteria are updated in place by code, so ratings already made stay linked to them; a criterion that has ratings can be reworded but not removed. Rankings keep the rubric status they were calculated under, so earlier production rankings stay production. The database allows these changes only when the application sets `wob.rubric_admin` for the transaction.
 
 **Assessment.** `POST /api/v1/assessments` queues a run for a category. For every finalist and criterion, the worker:
 1. retrieves that finalist's top passages for the criterion through hybrid search;
 2. adds the finalist's claims with their verification status, and any accepted public sources;
-3. asks Claude Opus 5.5 (prompt `app/prompts/criterion_assessment.py`) for a rating on the official 1–5 scale, with a rationale, citations, evidence sufficiency and reasons for review.
+3. asks Claude Opus 5.5 (prompt `app/prompts/criterion_assessment.py`) for a rating on the rubric's scale (see *Rating scales*), with a rationale, citations, evidence sufficiency and reasons for review.
 
 Each request sees one finalist only. Citations are checked against the evidence. A rating of 2 or more without a verified supporting citation is flagged `uncited_rating` and can't be approved. Each result is saved as soon as it's made, so a failed run resumes where it stopped.
 
@@ -173,7 +175,7 @@ Each request sees one finalist only. Citations are checked against the evidence.
 
 **Ranking.** `POST /api/v1/rankings` calculates a snapshot from a completed run:
 - Score: the mean of the effective ratings, or the weighted mean.
-- Order: ranked on exact decimal scores, displayed to 2 decimals and ×20 out of 100.
+- Order: ranked on exact decimal scores, displayed to 2 decimals and as points out of 100 (×20 on 1–5, ×100/3 on 0–3).
 - Ties share a rank and stay provisional.
 - Rejected or missing ratings leave a finalist unscored rather than partially averaged, and unreviewed ratings are listed.
 - Close results (within 0.25) are highlighted.
@@ -187,7 +189,7 @@ The arithmetic is covered by reference tests (`tests/test_ranking_math.py`).
 Before AI ratings are relied on, committee raters rate the same items blind, and the AI is compared with them (*AI calibration* on the category page).
 
 1. **Creating a study.** Admins, coordinators or committee members create a study from the latest completed assessment run. It covers every AI-rated finalist × criterion item, and they name the raters (committee, judges, reviewers or admins).
-2. **Rating blind.** Until each rater submits, the category's AI ratings, ranking, reports and assessment reviews are hidden from them. Their worksheet (`/calibration/{id}`) shows only the criterion and the finalist's evidence. They rate on the official 1–5 scale and confirm, when submitting, that they rated without seeing the AI's output.
+2. **Rating blind.** Until each rater submits, the category's AI ratings, ranking, reports and assessment reviews are hidden from them. Their worksheet (`/calibration/{id}`) shows only the criterion and the finalist's evidence. They rate on the study's rubric scale and confirm, when submitting, that they rated without seeing the AI's output.
 3. **Results.** The AI's original (pre-review) ratings are compared with every rater:
    - **Measures:** quadratic-weighted kappa, exact and within-one-point agreement, bias (AI minus the human average) and mean absolute difference, overall and per criterion.
    - **Baseline:** the same figures for rater vs rater, so the AI is judged against how far the committee itself agrees.
@@ -289,7 +291,7 @@ The schema enforces these rules from the spec, so a bug in application code can'
 
 | Rule | Mechanism |
 |---|---|
-| Ratings are integers 1–5 (§2) | `CHECK` on `criterion_assessments.rating`; fixed `rating_scale` table |
+| Ratings are integers on their rubric version's scale (1–5 or 0–3) | Triggers check AI, reviewer and calibration ratings and ranking scores against the version's scale |
 | No cross-finalist evidence (§5.3, §12) | `finalist_category_id` carried on chunks, claims, citations, with composite FKs |
 | Only confirmed documents are indexed (FR-03) | Trigger blocks chunks until `mapping_confirmed_at` is set |
 | Originals are immutable (§5.1) | Trigger protects file metadata; documents can't be deleted |

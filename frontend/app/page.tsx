@@ -188,8 +188,8 @@ export default function DashboardPage() {
                     <th>Rank</th>
                     <th>Name</th>
                     <th>Category</th>
-                    <th>AI Score (1–5)</th>
-                    <th>Key Strengths (rated 4 or 5)</th>
+                    <th>AI Score</th>
+                    <th>Key Strengths (top two levels)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -208,6 +208,7 @@ export default function DashboardPage() {
                       </td>
                       <td>
                         <strong>{t.score_display}</strong>
+                        {t.score_display && <span className="muted"> / {t.scale_high}</span>}
                       </td>
                       <td className="muted">{t.strengths.length ? t.strengths.join(", ") : "—"}</td>
                     </tr>
