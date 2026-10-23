@@ -252,6 +252,28 @@ export type PublicSource = {
   review_notes: string | null;
 };
 
+export type AiCostStep = {
+  key: string;
+  label: string;
+  detail: string;
+  input_tokens: number;
+  cache_write_tokens: number;
+  cache_read_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+};
+
+export type AiCosts = {
+  days: number | null;
+  category_id: string | null;
+  prices_as_of: string;
+  total_usd: number;
+  steps: AiCostStep[];
+  prices: { model: string; input: number; cache_write: number; cache_read: number; output: number }[];
+  web_search_per_1000: number;
+  notes: string[];
+};
+
 export type JudgesPackReport = { id: string; created_at: string };
 
 export type JudgesPackFinalist = {
@@ -754,6 +776,12 @@ export const api = {
   createReport: (body: { kind: "individual" | "category"; category_id: string; finalist_id?: string }) =>
     request<ReportRecord>("/reports", json("POST", body)),
   reportUrl: (id: string) => `/api/v1/reports/${id}/download`,
+  aiCosts: (days: number | null, categoryId: string | null) => {
+    const query = new URLSearchParams();
+    if (days) query.set("days", String(days));
+    if (categoryId) query.set("category_id", categoryId);
+    return request<AiCosts>(`/admin/ai-costs?${query}`);
+  },
   judgesPack: () => request<JudgesPackCategory[]>("/judges-pack"),
   listStudies: (categoryId: string) => request<StudySummary[]>(`/categories/${categoryId}/calibration-studies`),
   eligibleRaters: () => request<{ id: string; display_name: string; role: string }[]>("/calibration/eligible-raters"),

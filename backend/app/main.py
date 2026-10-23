@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import (
+    ai_costs,
     assessment,
     auth,
     calibration,
@@ -51,6 +52,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(health.router)
+app.include_router(ai_costs.router)
 app.include_router(auth.router)
 app.include_router(knowledge_base.router)
 app.include_router(claims.router)

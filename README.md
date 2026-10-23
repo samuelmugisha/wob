@@ -246,6 +246,10 @@ Through OpenRouter:
 - External research doesn't work through OpenRouter: it rejects Claude's web-fetch results when a paused research turn is sent back. Set `RESEARCH_PROVIDER=anthropic` with an `ANTHROPIC_API_KEY` so research calls Anthropic directly while claims and assessment stay on OpenRouter.
 - Research costs are kept down by default: it runs on `RESEARCH_MODEL` (default `claude-haiku-5-5`) at `RESEARCH_EFFORT=medium`, with at most 10 searches and 10 page fetches per run, 10,000 tokens of text kept per page (`research_max_*` in `app/config.py`), and prompt caching so resumed runs re-read fetched pages at cache rates. Set `RESEARCH_MODEL=claude-opus-5-5` for stronger identity and source judgement at a higher cost.
 
+### AI costs
+
+*AI Costs* in the menu (admins only; `GET /api/v1/admin/ai-costs?days=&category_id=`) estimates what each step of the pipeline has cost, for a period and for all categories or one. The steps are claim extraction, research (Claude's reading and reasoning, web searches and web fetches), assessment, and evidence search and reranking, which runs on the server for free. Costs are calculated from the tokens and searches each job records, at Anthropic's list prices in `app/services/ai_costs.py` (update `PRICES` when prices change). The page charts cost per step, highlights the largest, and lists tokens per step, the prices used and the limits of the estimate. It isn't a bill: OpenRouter, negotiated rates and US-only inference are charged differently. Linking research findings to claims isn't recorded yet.
+
 ### Tracing (LangSmith)
 
 Set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` (and optionally `LANGSMITH_PROJECT`, default `wob-awards-2026`, and `LANGSMITH_ENDPOINT` for an EU workspace) to trace what the worker is doing. Each research run, claim extraction and assessment run is one trace. Inside it are the steps (each criterion assessed, retrieval, matching sources to claims) and every Claude call, with timing, model, token use and cost, retries and errors.

@@ -505,3 +505,25 @@ td > .badge:first-child { margin-left: 0; }
 .pack-docs a { overflow-wrap: anywhere; }
 
 .tile-hidden { opacity: 0.6; }
+
+/* AI costs: one recessive hue per step, the costliest in gold (validated pairs). */
+:root { --chart-bar: #8e3a84; --chart-top: #b8801f; }
+@media (prefers-color-scheme: dark) {
+  :root { --chart-bar: #b565aa; --chart-top: #b98a2c; }
+}
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-strong); margin-bottom: 4px; }
+.cost-title { font-size: 18px; }
+.cost-chart { display: grid; gap: 6px; margin: 8px 0 14px; }
+.cost-row { display: grid; grid-template-columns: minmax(160px, 34%) 1fr 84px; gap: 14px; align-items: center; padding: 6px 4px; border-radius: 6px; outline: none; }
+.cost-row:hover, .cost-row:focus-visible { background: var(--surface-2); }
+.cost-label { font-size: 14px; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.cost-track { min-width: 0; position: relative; height: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; }
+.cost-bar { height: 100%; background: var(--chart-bar); border-radius: 0 4px 4px 0; }
+.cost-bar.top { background: var(--chart-top); }
+.cost-value { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; color: var(--text); }
+.cost-tip { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 5; min-width: 220px; max-width: min(360px, 80vw); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 8px 10px; font-size: 13px; pointer-events: none; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 640px) {
+  .cost-row { grid-template-columns: minmax(0, 1fr) 72px; }
+  .cost-label { grid-column: 1 / -1; }
+}
