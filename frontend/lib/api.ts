@@ -440,6 +440,7 @@ export type Ranking = {
 export type CategoryRankings = {
   assessment: { enabled: boolean; reason: string | null };
   rubric: Rubric | null;
+  working_rubric: Rubric | null;
   latest_run: AssessmentRun | null;
   ranking: Ranking | null;
   hidden_for_calibration: boolean;
@@ -763,6 +764,7 @@ export const api = {
     categoryId: string,
     body: {
       use_template?: boolean;
+      copy_from?: string;
       criteria?: CriterionInput[];
       weighting?: Rubric["weighting"];
       scale?: RatingScale;

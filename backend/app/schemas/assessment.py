@@ -19,6 +19,8 @@ class CriterionIn(BaseModel):
 
 class RubricIn(BaseModel):
     use_template: bool = False
+    # Start a new version from this one's criteria, weights and weighting.
+    copy_from: uuid.UUID | None = None
     criteria: list[CriterionIn] = []
     weighting: WeightingMode = WeightingMode.EQUAL
     notes: str | None = Field(default=None, max_length=4000)
@@ -192,7 +194,9 @@ class RankingOut(BaseModel):
 
 class CategoryRankingsOut(BaseModel):
     assessment: dict[str, Any]
-    rubric: RubricOut | None
+    rubric: RubricOut | None  # the version assessments use
+    # A newer version being prepared (draft or approved) while an older frozen one is in use.
+    working_rubric: RubricOut | None = None
     latest_run: AssessmentRunOut | None
     ranking: RankingOut | None
     hidden_for_calibration: bool = False

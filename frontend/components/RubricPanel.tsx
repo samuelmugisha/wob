@@ -145,11 +145,15 @@ function RubricEditor({ rubric, onSaved, onCancel }: { rubric: Rubric; onSaved: 
 export default function RubricPanel({
   categoryId,
   rubric,
+  inUse = null,
   me,
   onChanged,
 }: {
   categoryId: string;
+  /** The version to show and work on: a newer draft if there is one, else the one in use. */
   rubric: Rubric | null;
+  /** The older frozen version assessments keep using while `rubric` is being prepared. */
+  inUse?: Rubric | null;
   me: Me | null;
   onChanged: () => void;
 }) {
@@ -188,9 +192,31 @@ export default function RubricPanel({
       <div className="toolbar">
         <h2 style={{ margin: 0 }}>Scoring rubric</h2>
         <div className="inline-form" style={{ marginTop: 0 }}>
-          {canEdit && (!rubric || rubric.status !== "draft") && (
+          {canEdit && rubric && rubric.status !== "draft" && (
+            <>
+              <button
+                className="secondary"
+                onClick={() => act(() => api.createRubric(categoryId, { copy_from: rubric.id }))}
+                title="A new draft with this version's criteria, weights and weighting, to edit"
+              >
+                New draft from version {rubric.version}
+              </button>
+              <button
+                className="link small"
+                onClick={() =>
+                  act(
+                    () => api.createRubric(categoryId, { use_template: true }),
+                    "Start a new draft from the illustrative template instead of this version's criteria?",
+                  )
+                }
+              >
+                or from the template
+              </button>
+            </>
+          )}
+          {canEdit && !rubric && (
             <button className="secondary" onClick={() => act(() => api.createRubric(categoryId, { use_template: true }))}>
-              {rubric ? "New draft version" : "Start from draft template"}
+              Start from draft template
             </button>
           )}
           {canEdit && rubric?.status === "draft" && !editing && (
@@ -232,6 +258,12 @@ export default function RubricPanel({
         </div>
       </div>
       {error && <div className="notice error">{error}</div>}
+      {inUse && rubric && (
+        <div className="notice small">
+          Version {rubric.version} is being prepared. Assessments keep using version {inUse.version}{" "}
+          {`(${inUse.status})`} until version {rubric.version} is frozen.
+        </div>
+      )}
       {!rubric && <div className="empty">No rubric yet. Assessments need one.</div>}
       {rubric && (
         <>

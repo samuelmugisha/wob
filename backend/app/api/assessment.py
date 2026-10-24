@@ -97,9 +97,17 @@ def list_rubrics(category_id: uuid.UUID, session: SessionDep, _: CurrentUser) ->
 def create_rubric(
     category_id: uuid.UUID, body: RubricIn, session: SessionDep, user: Coordinator
 ) -> RubricOut:
-    """Create a draft rubric version, from the illustrative template or given criteria."""
+    """Create a draft rubric version: a copy of an earlier version of this category's rubric,
+    the illustrative template, or the given criteria. New versions rate on 0-3 unless asked."""
     _get_category(session, category_id)
-    if body.use_template:
+    source = None
+    weighting = body.weighting
+    if body.copy_from:
+        source = session.get(RubricVersion, body.copy_from)
+        if source is None or source.category_id != category_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "no such rubric in this category")
+        criteria, weighting, notes = rubrics.copy_of(source)
+    elif body.use_template:
         criteria, notes = rubrics.DRAFT_TEMPLATE, rubrics.TEMPLATE_NOTE
     else:
         criteria, notes = [c.model_dump() for c in body.criteria], body.notes
@@ -109,9 +117,10 @@ def create_rubric(
             category_id,
             user,
             criteria,
-            weighting=body.weighting,
+            weighting=weighting,
             notes=notes,
             scale=body.scale or RatingScale.ZERO_TO_THREE,
+            copied_from=source,
         )
     except rubrics.RubricError as exc:
         raise _http(exc) from exc
@@ -502,12 +511,14 @@ def category_rankings(
         .limit(1)
     )
     rubric = rubrics.current_rubric(session, category_id)
+    working = rubrics.working_rubric(session, category_id)
     run = _latest_run(session, category_id)
     hidden = is_blinded(session, user, category_id)
     study = latest_result(session, category_id)
     return CategoryRankingsOut(
         assessment=provider_status(settings),
         rubric=RubricOut.model_validate(rubric) if rubric else None,
+        working_rubric=RubricOut.model_validate(working) if working else None,
         latest_run=AssessmentRunOut.model_validate(run) if run else None,
         ranking=_ranking_out(session, snapshot) if snapshot and not hidden else None,
         hidden_for_calibration=hidden,

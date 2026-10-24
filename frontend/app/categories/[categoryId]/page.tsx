@@ -150,7 +150,13 @@ export default function CategoryPage() {
 
       {rankings && (
         <>
-          <RubricPanel categoryId={categoryId} rubric={rankings.rubric} me={me} onChanged={loadRankings} />
+          <RubricPanel
+            categoryId={categoryId}
+            rubric={rankings.working_rubric ?? rankings.rubric}
+            inUse={rankings.working_rubric ? rankings.rubric : null}
+            me={me}
+            onChanged={loadRankings}
+          />
           <RankingPanel categoryId={categoryId} data={rankings} me={me} onChanged={loadRankings} />
           <ReportsPanel categoryId={categoryId} ranking={rankings.ranking} me={me} />
           <RetentionPanel categoryId={categoryId} me={me} />

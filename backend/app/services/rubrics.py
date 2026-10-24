@@ -109,6 +109,7 @@ def create_draft(
     weighting: WeightingMode = WeightingMode.EQUAL,
     notes: str | None = None,
     scale: RatingScale = RatingScale.ZERO_TO_THREE,
+    copied_from: RubricVersion | None = None,
 ) -> RubricVersion:
     version = (
         session.scalar(
@@ -135,8 +136,16 @@ def create_draft(
         rubric.id,
         version=version,
         criteria=[c["code"] for c in criteria],
+        copied_from_version=copied_from.version if copied_from else None,
     )
     return rubric
+
+
+def copy_of(rubric: RubricVersion) -> tuple[list[dict[str, Any]], WeightingMode, str | None]:
+    """A rubric's criteria, weighting and notes, to start a new draft version from. The
+    template's warning note isn't carried over."""
+    notes = None if rubric.notes == TEMPLATE_NOTE else rubric.notes
+    return [_criterion_dump(c) for c in rubric.criteria], rubric.weighting, notes
 
 
 def _admin_change(session: Session) -> None:
@@ -339,3 +348,16 @@ def run_scale(session: Session, run_id: uuid.UUID) -> Scale:
             .where(AssessmentRun.id == run_id)
         )
     )
+
+
+def working_rubric(session: Session, category_id: uuid.UUID) -> RubricVersion | None:
+    """The newest version, when it isn't the one in use: a draft or approved version being
+    prepared while an earlier frozen version stays in use until it is frozen."""
+    latest = session.scalar(
+        select(RubricVersion)
+        .where(RubricVersion.category_id == category_id)
+        .order_by(RubricVersion.version.desc())
+        .limit(1)
+    )
+    current = current_rubric(session, category_id)
+    return latest if latest and current and latest.id != current.id else None

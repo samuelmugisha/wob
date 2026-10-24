@@ -118,3 +118,41 @@ def test_the_scale_changes_only_on_an_unrated_draft(client_for, coordinator, wor
     body["scale"] = "one_to_five"
     refused = coordinator.put(f"/api/v1/rubrics/{rubric['id']}", json=body)
     assert refused.status_code == 409 and "nobody has rated" in refused.json()["detail"]
+
+
+def test_new_version_starts_from_the_previous_one(client_for, coordinator, world) -> None:
+    from tests.test_assessment import _approve_and_freeze
+
+    category_id = world["category"]["id"]
+    rubric = world["rubric"]
+    criteria = [
+        {**c, "weight": w} for c, w in zip(rubric["criteria"], [40, 30, 10, 10, 10], strict=True)
+    ]
+    coordinator.put(
+        f"/api/v1/rubrics/{rubric['id']}",
+        json={"criteria": criteria, "weighting": "weighted", "notes": "Board-approved wording."},
+    )
+    _approve_and_freeze(client_for, world)
+
+    copy = coordinator.post(
+        f"/api/v1/categories/{category_id}/rubrics", json={"copy_from": rubric["id"]}
+    )
+    assert copy.status_code == 201, copy.text
+    draft = copy.json()
+    assert draft["status"] == "draft" and draft["version"] == rubric["version"] + 1
+    assert draft["weighting"] == "weighted" and draft["notes"] == "Board-approved wording."
+    assert [(c["code"], c["name"], float(c["weight"])) for c in draft["criteria"]] == [
+        (c["code"], c["name"], float(w))
+        for c, w in zip(rubric["criteria"], [40, 30, 10, 10, 10], strict=True)
+    ]
+
+    # The frozen version stays in use; the draft is shown as the one being prepared.
+    state = coordinator.get(f"/api/v1/categories/{category_id}/rankings").json()
+    assert state["rubric"]["id"] == rubric["id"]
+    assert state["working_rubric"]["id"] == draft["id"]
+
+    other = test_assessment.make_category(coordinator)
+    elsewhere = coordinator.post(
+        f"/api/v1/categories/{other['id']}/rubrics", json={"copy_from": rubric["id"]}
+    )
+    assert elsewhere.status_code == 404
