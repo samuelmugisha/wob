@@ -31,9 +31,11 @@ from app.models import (
     FinalistCategory,
     Import,
     ProcessingStatus,
+    ReferenceNote,
     RubricCriterion,
     RubricVersion,
     SourceType,
+    User,
     VerificationReview,
 )
 from app.schemas.knowledge_base import (
@@ -47,6 +49,8 @@ from app.schemas.knowledge_base import (
     FinalistCreate,
     FinalistOut,
     PassageOut,
+    ReferenceNoteOut,
+    ReferenceNotesIn,
     SearchResultOut,
     SkippedFileOut,
     UploadResultOut,
@@ -239,6 +243,91 @@ def get_finalist(
     fc = _get_finalist_category(session, category_id, finalist_id)
     count = session.scalar(_active_document_count(fc.id)) or 0
     return _finalist_out(fc, count)
+
+
+# --- Reference notes ---------------------------------------------------------------------------
+
+
+def _reference_notes(session: Session, fc: FinalistCategory) -> list[ReferenceNoteOut]:
+    rows = session.execute(
+        select(ReferenceNote, User.display_name)
+        .outerjoin(User, User.id == ReferenceNote.updated_by)
+        .where(ReferenceNote.finalist_category_id == fc.id)
+        .order_by(ReferenceNote.position)
+    ).all()
+    return [
+        ReferenceNoteOut(
+            position=note.position,
+            referee_name=note.referee_name,
+            notes=note.notes,
+            updated_at=note.updated_at,
+            updated_by=name,
+        )
+        for note, name in rows
+    ]
+
+
+@router.get("/categories/{category_id}/finalists/{finalist_id}/reference-notes")
+def list_reference_notes(
+    category_id: uuid.UUID, finalist_id: uuid.UUID, session: SessionDep, _: CurrentUser
+) -> list[ReferenceNoteOut]:
+    """What the finalist's references said, as recorded by a coordinator."""
+    return _reference_notes(session, _get_finalist_category(session, category_id, finalist_id))
+
+
+@router.put("/categories/{category_id}/finalists/{finalist_id}/reference-notes")
+def save_reference_notes(
+    category_id: uuid.UUID,
+    finalist_id: uuid.UUID,
+    body: ReferenceNotesIn,
+    session: SessionDep,
+    user: Coordinator,
+) -> list[ReferenceNoteOut]:
+    """Replace the finalist's reference notes (up to four, in order)."""
+    fc = _get_finalist_category(session, category_id, finalist_id)
+    if consent.withdrawn(session, fc.id, consent.Purpose.ASSESSMENT):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "the finalist has withdrawn consent to assessment (part A)"
+        )
+    existing = {
+        n.position: n
+        for n in session.scalars(
+            select(ReferenceNote).where(ReferenceNote.finalist_category_id == fc.id)
+        )
+    }
+    now = datetime.now(UTC)
+    for position, item in enumerate(body.notes, start=1):
+        name, text_ = item.referee_name.strip(), item.notes.strip()
+        if not name or not text_:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "each reference needs a name and notes"
+            )
+        note = existing.pop(position, None)
+        if note is None:
+            session.add(
+                ReferenceNote(
+                    finalist_category_id=fc.id,
+                    position=position,
+                    referee_name=name,
+                    notes=text_,
+                    updated_by=user.id,
+                )
+            )
+        elif (note.referee_name, note.notes) != (name, text_):
+            note.referee_name, note.notes = name, text_
+            note.updated_by, note.updated_at = user.id, now
+    for note in existing.values():
+        session.delete(note)
+    audit.record(
+        session,
+        user,
+        "reference_notes.saved",
+        "finalist_category",
+        fc.id,
+        references=len(body.notes),
+    )
+    session.commit()
+    return _reference_notes(session, fc)
 
 
 # --- Documents ---------------------------------------------------------------------------------

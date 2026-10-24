@@ -9,6 +9,7 @@ import ConsentPanel from "@/components/ConsentPanel";
 import DataRightsPanel from "@/components/DataRightsPanel";
 import DocumentTable from "@/components/DocumentTable";
 import EvidenceSearch from "@/components/EvidenceSearch";
+import ReferenceNotesPanel from "@/components/ReferenceNotesPanel";
 import { IconArrow, IconChevron, IconDocument, IconFolder, IconLink, IconShield } from "@/components/Icons";
 import ResearchPanel from "@/components/ResearchPanel";
 import UploadPanel from "@/components/UploadPanel";
@@ -344,6 +345,7 @@ export default function CandidatePage() {
               <DocumentTable documents={documents} onChanged={loadDocuments} />
             )}
           </section>
+          <ReferenceNotesPanel categoryId={categoryId} finalistId={finalistId} />
           <EvidenceSearch categoryId={categoryId} finalistId={finalistId} />
         </>
       )}

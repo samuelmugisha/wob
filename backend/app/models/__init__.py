@@ -717,3 +717,18 @@ class AuditEvent(Base):
     entity_type: Mapped[str]
     entity_id: Mapped[uuid.UUID | None]
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class ReferenceNote(Base):
+    """What one of a finalist's references said, recorded by a coordinator (up to four)."""
+
+    __tablename__ = "reference_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    finalist_category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("finalist_categories.id"))
+    position: Mapped[int]
+    referee_name: Mapped[str]
+    notes: Mapped[str]
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())

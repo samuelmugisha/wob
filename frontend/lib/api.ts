@@ -274,6 +274,14 @@ export type AiCosts = {
   notes: string[];
 };
 
+export type ReferenceNote = {
+  position: number;
+  referee_name: string;
+  notes: string;
+  updated_at: string;
+  updated_by: string | null;
+};
+
 export type JudgesPackReport = { id: string; created_at: string };
 
 export type JudgesPackFinalist = {
@@ -814,6 +822,17 @@ export const api = {
     if (categoryId) query.set("category_id", categoryId);
     return request<AiCosts>(`/admin/ai-costs?${query}`);
   },
+  listReferenceNotes: (categoryId: string, finalistId: string) =>
+    request<ReferenceNote[]>(`/categories/${categoryId}/finalists/${finalistId}/reference-notes`),
+  saveReferenceNotes: (
+    categoryId: string,
+    finalistId: string,
+    notes: { referee_name: string; notes: string }[],
+  ) =>
+    request<ReferenceNote[]>(
+      `/categories/${categoryId}/finalists/${finalistId}/reference-notes`,
+      json("PUT", { notes }),
+    ),
   judgesPack: () => request<JudgesPackCategory[]>("/judges-pack"),
   listStudies: (categoryId: string) => request<StudySummary[]>(`/categories/${categoryId}/calibration-studies`),
   eligibleRaters: () => request<{ id: string; display_name: string; role: string }[]>("/calibration/eligible-raters"),

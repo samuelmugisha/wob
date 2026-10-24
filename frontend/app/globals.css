@@ -527,3 +527,11 @@ td > .badge:first-child { margin-left: 0; }
   .cost-row { grid-template-columns: minmax(0, 1fr) 72px; }
   .cost-label { grid-column: 1 / -1; }
 }
+
+/* Reference notes */
+.reference-notes { display: grid; gap: 10px; }
+.reference-text { white-space: pre-wrap; margin: 6px 0; }
+.reference-form { display: grid; gap: 12px; }
+.reference-form .field { flex: none; }
+.reference-form .criterion-row .link { align-self: flex-start; }
+.reference-form textarea { width: 100%; resize: vertical; }

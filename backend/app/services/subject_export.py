@@ -29,6 +29,7 @@ from app.models import (
     FinalistConsent,
     RankingEntry,
     RankingSnapshot,
+    ReferenceNote,
     Report,
     ReportKind,
     RubricCriterion,
@@ -242,6 +243,14 @@ def build_export(
             "eligibility_flagged": fc.eligibility_flagged,
         },
         "consents": consents,
+        "reference_notes": [
+            {"referee": r.referee_name, "notes": r.notes, "recorded_at": _iso(r.updated_at)}
+            for r in session.scalars(
+                select(ReferenceNote)
+                .where(ReferenceNote.finalist_category_id == fc.id)
+                .order_by(ReferenceNote.position)
+            )
+        ],
         "documents": [
             {
                 "filename": d.filename,

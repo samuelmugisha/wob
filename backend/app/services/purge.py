@@ -43,6 +43,7 @@ _STEPS = [
     ("documents", "id", "documents"),
     ("imports", "id", "imports"),
     ("finalist_consents", "id", "finalist_consents"),
+    ("reference_notes", "id", "reference_notes"),
 ]
 
 _BY_FINALIST = [
@@ -56,6 +57,7 @@ _BY_FINALIST = [
     "documents",
     "imports",
     "finalist_consents",
+    "reference_notes",
 ]
 _GATHER = {
     table: f"SELECT id FROM {table} WHERE finalist_category_id = :fc"  # noqa: S608 (fixed names)

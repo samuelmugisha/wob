@@ -104,6 +104,10 @@ Back the keys up separately from the data: losing them makes every stored file u
 
 Set `EMBEDDING_DIM` to match the chosen embedding model **before** the first migration. Changing it later requires a new migration and re-embedding all chunks.
 
+### Reference notes
+
+Under *Supporting Documents* on a finalist's page, coordinators record what the finalist's references said: up to four, each with the reference's name and their notes (`GET`/`PUT /api/v1/categories/{category}/finalists/{finalist}/reference-notes`). Everyone signed in can read them. Saving replaces the list in order and is audited as `reference_notes.saved`. The database allows at most four per nomination. A finalist who withdrew consent to assessment can't have new notes added. The notes are part of the subject-access export and are erased by the purge. They are shown to people only: they are not sent to the AI or used in assessment.
+
 ### Importing nomination forms
 
 `python -m app.cli import-form-evidence FILE --as EMAIL` takes a Google Forms export (`.xlsx`, one sheet per award category; `-` reads it from standard input) and attaches each response, as a supporting document, to the finalist of the same name in that category. Matching ignores case, accents, punctuation, word order and titles such as Dr or Mrs. A sheet matches the category whose name starts with its title (Sheets cuts titles at 31 characters) or the one category containing all its words. Where names differ more than that, a person decides: `--sheet "SHEET=category-code"` and `--name "NAME IN FORM=NAME IN APP"`, each repeatable.
