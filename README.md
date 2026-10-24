@@ -79,7 +79,7 @@ The system implements the *AI-Powered RAG Technical Specification v1.0* and runs
 
 ## Screenshots
 
-> All screenshots use a separate demo database with **fictional nominees and organisations**. No real nomination data is shown.
+> All screenshots use a separate demo database with **placeholder nominees and organisations** (Nominee Candidate1, Organisation A, and so on). No real nomination data is shown.
 
 <table>
 <tr>
