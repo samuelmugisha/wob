@@ -104,7 +104,7 @@ Set `EMBEDDING_DIM` to match the chosen embedding model **before** the first mig
 
 ### Importing nomination forms
 
-`python -m app.cli import-form-evidence FILE --as EMAIL` takes a Google Forms export (`.xlsx`, one sheet per award category; `-` reads it from standard input) and attaches each response, as a supporting document, to the finalist of the same name in that category. Matching ignores case, accents, punctuation and titles such as Dr or Mrs. Sheet titles cut short at 31 characters still match their category.
+`python -m app.cli import-form-evidence FILE --as EMAIL` takes a Google Forms export (`.xlsx`, one sheet per award category; `-` reads it from standard input) and attaches each response, as a supporting document, to the finalist of the same name in that category. Matching ignores case, accents, punctuation, word order and titles such as Dr or Mrs. A sheet matches the category whose name starts with its title (Sheets cuts titles at 31 characters) or the one category containing all its words. Where names differ more than that, a person decides: `--sheet "SHEET=category-code"` and `--name "NAME IN FORM=NAME IN APP"`, each repeatable.
 
 - **What goes in the document:** the nominee's organisation and title, every written answer under its question, and each referee's name and organisation. Emails, phone numbers, date of birth and the declaration are left out, because the documents go to the AI and to research. Uploaded-file answers are Google Drive links the server can't open, so they're listed for a coordinator to fetch and upload.
 - **What it skips:** responses that match no finalist, nominees who withdrew consent to assessment (or haven't given it when uploads require consent), and nominees already imported.

@@ -252,7 +252,24 @@ def verify_supporting_claims() -> None:
     print(f"Verified {verified} claim(s) supported by a supporting document.")
 
 
-def import_form_evidence(path: str, actor_email: str, confirmed: bool, extract: bool) -> None:
+def _pairs(items: list[str], option: str) -> dict[str, str]:
+    pairs = {}
+    for item in items:
+        left, sep, right = item.partition("=")
+        if not sep or not left.strip() or not right.strip():
+            sys.exit(f"{option} takes LEFT=RIGHT, got {item!r}")
+        pairs[left.strip()] = right.strip()
+    return pairs
+
+
+def import_form_evidence(
+    path: str,
+    actor_email: str,
+    confirmed: bool,
+    extract: bool,
+    sheets: list[str] | None = None,
+    names: list[str] | None = None,
+) -> None:
     """Attach nomination-form responses (an .xlsx export, one sheet per category; '-' reads it
     from standard input) to the matching finalists as supporting documents. Without --yes it
     only shows what would happen."""
@@ -267,7 +284,16 @@ def import_form_evidence(path: str, actor_email: str, confirmed: bool, extract: 
         actor = _find(session, actor_email)
         if actor is None or actor.role not in (Role.ADMIN, Role.SECRETARIAT):
             sys.exit(f"{actor_email} is not an administrator or coordinator account.")
-        plan = form_import.plan_import(session, form_import.read_workbook(data), settings)
+        try:
+            plan = form_import.plan_import(
+                session,
+                form_import.read_workbook(data),
+                settings,
+                _pairs(sheets or [], "--sheet"),
+                _pairs(names or [], "--name"),
+            )
+        except LookupError as exc:
+            sys.exit(str(exc))
         for item in plan.imports:
             state = (
                 f"skipped: {item.blocked}"
@@ -336,6 +362,18 @@ def main() -> None:
     form.add_argument(
         "--no-extract", action="store_true", help="don't queue claim extraction afterwards"
     )
+    form.add_argument(
+        "--sheet",
+        action="append",
+        default=[],
+        help='a sheet\'s category when names differ: "SHEET=category-code" (repeatable)',
+    )
+    form.add_argument(
+        "--name",
+        action="append",
+        default=[],
+        help='a finalist whose name differs: "NAME IN FORM=NAME IN APP" (repeatable)',
+    )
     remove = commands.add_parser("delete-category")
     remove.add_argument("code")
     remove.add_argument("--yes", action="store_true", help="delete; without it, only preview")
@@ -369,7 +407,9 @@ def main() -> None:
     elif args.command == "verify-supporting-claims":
         verify_supporting_claims()
     elif args.command == "import-form-evidence":
-        import_form_evidence(args.path, args.actor, args.yes, not args.no_extract)
+        import_form_evidence(
+            args.path, args.actor, args.yes, not args.no_extract, args.sheet, args.name
+        )
     elif args.command == "delete-category":
         delete_category(args.code, args.yes)
     else:

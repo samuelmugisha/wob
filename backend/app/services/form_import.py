@@ -117,12 +117,19 @@ def read_workbook(data: bytes) -> dict[str, list[Response]]:
 
 def match_category(sheet: str, categories: list[AwardCategory]) -> AwardCategory | None:
     """Sheet titles are cut to 31 characters, so a category whose name starts with the title
-    matches; otherwise the one closely similar name."""
+    matches; otherwise the one category containing all its words, or the one closely similar
+    name."""
     key = _key(sheet).replace(" ", "")
     names = {c.id: _key(c.name).replace(" ", "") for c in categories}
     starts = [c for c in categories if names[c.id].startswith(key) or key.startswith(names[c.id])]
     if len(starts) == 1:
         return starts[0]
+    # Every word of the sheet title in one category's name ("Mentorship Award" ->
+    # "Mentorship Excellence Award - Individual").
+    words = set(_key(sheet).split())
+    within = [c for c in categories if words <= set(_key(c.name).split())]
+    if len(within) == 1:
+        return within[0]
     close = [
         c for c in categories if difflib.SequenceMatcher(None, key, names[c.id]).ratio() >= 0.85
     ]
@@ -133,11 +140,16 @@ def match_finalist(
     name: str, finalists: list[tuple[FinalistCategory, Finalist]]
 ) -> tuple[FinalistCategory, Finalist] | None:
     """The finalist with the same name (ignoring case, accents, punctuation and titles), else
-    the one name that is almost identical."""
+    the same words in another order ("Sarah Nabirye" / "Nabirye Sarah"), else the one name that
+    is almost identical."""
     key = name_key(name)
     exact = [f for f in finalists if name_key(f[1].full_name) == key]
     if len(exact) == 1:
         return exact[0]
+    words = sorted(key.split())
+    reordered = [f for f in finalists if sorted(name_key(f[1].full_name).split()) == words]
+    if len(reordered) == 1:
+        return reordered[0]
     close = [
         f
         for f in finalists
@@ -205,16 +217,33 @@ class Plan:
     empty_sheets: list[str] = field(default_factory=list)
 
 
-def plan_import(session: Session, sheets: dict[str, list[Response]], settings: Settings) -> Plan:
+def plan_import(
+    session: Session,
+    sheets: dict[str, list[Response]],
+    settings: Settings,
+    sheet_categories: dict[str, str] | None = None,
+    names: dict[str, str] | None = None,
+) -> Plan:
+    """sheet_categories maps a sheet title to a category code, and names a form's full name to
+    a finalist's, for the cases a person decides; both override automatic matching."""
     plan = Plan()
     categories = session.scalars(
         select(AwardCategory).where(AwardCategory.hidden_at.is_(None))
     ).all()
+    by_code = {c.code: c for c in categories}
+    sheet_categories = sheet_categories or {}
+    names = {name_key(k): v for k, v in (names or {}).items()}
+    for code in sheet_categories.values():
+        if code not in by_code:
+            raise LookupError(f"no visible category has the code {code!r}")
     for sheet, responses in sheets.items():
         if not responses:
             plan.empty_sheets.append(sheet)
             continue
-        category = match_category(sheet, list(categories))
+        if sheet in sheet_categories:
+            category = by_code[sheet_categories[sheet]]
+        else:
+            category = match_category(sheet, list(categories))
         if category is None:
             plan.sheets_without_category.append(sheet)
             continue
@@ -224,7 +253,10 @@ def plan_import(session: Session, sheets: dict[str, list[Response]], settings: S
             .where(FinalistCategory.category_id == category.id)
         ).all()
         for response in responses:
-            found = match_finalist(response.full_name, [tuple(f) for f in finalists])
+            found = match_finalist(
+                names.get(name_key(response.full_name), response.full_name),
+                [tuple(f) for f in finalists],
+            )
             if found is None:
                 plan.unmatched.append(response)
                 continue

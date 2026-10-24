@@ -158,3 +158,48 @@ def test_names_match_despite_titles_case_and_accents() -> None:
     finalists = [(None, F("Jane Doe")), (None, F("Janet Dee"))]
     assert match_finalist("Mrs Jane Doe", finalists)[1].full_name == "Jane Doe"
     assert match_finalist("Mary Major", finalists) is None
+
+
+def test_reordered_names_and_word_subset_sheets_match() -> None:
+    from app.services.form_import import match_category
+
+    class F:
+        def __init__(self, name: str) -> None:
+            self.full_name = name
+
+    finalists = [(None, F("Nabirye Sarah")), (None, F("Hajjat Aphwa Sebyala Kawaase"))]
+    assert match_finalist("SARAH NABIRYE", finalists)[1].full_name == "Nabirye Sarah"
+    assert match_finalist("HAJJAT  APHWA KAWAASE  SEBYALA", finalists) is finalists[1]
+
+    class C:
+        def __init__(self, name: str) -> None:
+            self.id, self.name = uuid.uuid4(), name
+
+    mentorship = C("Mentorship Excellence Award – Individual")
+    categories = [mentorship, C("Trailblazer Award"), C("Woman CEO of the Year")]
+    assert match_category("Mentorship Award", categories) is mentorship
+    assert match_category("Female Board ChairpersonDirecto", categories) is None
+
+
+def test_a_person_can_map_sheets_and_names(coordinator, setup, tmp_path, capsys) -> None:
+    path = tmp_path / "other.xlsx"
+    path.write_bytes(workbook({"Chair Of The Year": [row("J. Doe", "I chaired the board.")]}))
+    cli.import_form_evidence(str(path), setup["actor"], confirmed=False, extract=False)
+    assert "Sheets with no matching category: Chair Of The Year" in capsys.readouterr().out
+
+    cli.import_form_evidence(
+        str(path),
+        setup["actor"],
+        confirmed=False,
+        extract=False,
+        sheets=[f"Chair Of The Year={setup['category']['code']}"],
+        names=["J. Doe=Jane Doe"],
+    )
+    assert "J. Doe -> Jane Doe: import 1 answers" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit, match="no visible category has the code"):
+        cli.import_form_evidence(
+            str(path), setup["actor"], False, False, sheets=["Chair Of The Year=nope"]
+        )
+    with pytest.raises(SystemExit, match="takes LEFT=RIGHT"):
+        cli.import_form_evidence(str(path), setup["actor"], False, False, names=["J. Doe"])
