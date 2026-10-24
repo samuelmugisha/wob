@@ -1,313 +1,323 @@
-# WOB Awards 2026 – AI-Powered RAG Finalists Ranking
+<div align="center">
 
-This system assesses judge-shortlisted finalists using their submitted evidence, retrieval-augmented generation (RAG) and human verification, and produces provisional rankings within each award category. It implements *AI-Powered RAG Technical Specification v1.0*.
+# Women on Boards Awards 2026<br>AI-Powered Evidence Assessment & Ranking System
 
-> AI rankings are advisory. The awards committee retains responsibility for final deliberation and winner approval.
+**A production retrieval-augmented generation (RAG) system that turns nomination evidence into cited, human-verified, provisional rankings for an awards committee.**
 
-## How it works
+<br>
+
+<img src="https://skillicons.dev/icons?i=py,fastapi,postgres,nextjs,react,ts,docker,linux,git,github" alt="Python, FastAPI, PostgreSQL, Next.js, React, TypeScript, Docker, Linux, Git, GitHub" />
+
+<br><br>
+
+![Claude](https://img.shields.io/badge/Claude_Opus_5.5-D97757?style=flat-square&logo=claude&logoColor=white)
+![Anthropic](https://img.shields.io/badge/Anthropic_API-191919?style=flat-square&logo=anthropic&logoColor=white)
+![pgvector](https://img.shields.io/badge/pgvector-hybrid_search-336791?style=flat-square&logo=postgresql&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=flat-square&logo=sqlalchemy&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=flat-square&logo=pydantic&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-225%2B_tests-0A9EDC?style=flat-square&logo=pytest&logoColor=white)
+![Ruff](https://img.shields.io/badge/Ruff-D7FF64?style=flat-square&logo=ruff&logoColor=black)
+![uv](https://img.shields.io/badge/uv-DE5FE9?style=flat-square&logo=uv&logoColor=white)
+![LangSmith](https://img.shields.io/badge/LangSmith-tracing-1C3C3C?style=flat-square&logo=langchain&logoColor=white)
+![Caddy](https://img.shields.io/badge/Caddy-HTTPS-1F88C0?style=flat-square&logo=caddy&logoColor=white)
+![DigitalOcean](https://img.shields.io/badge/DigitalOcean-production-0080FF?style=flat-square&logo=digitalocean&logoColor=white)
+
+</div>
+
+---
+
+## Contents
+
+1. [Summary](#summary)
+2. [The problem and the outcome](#the-problem-and-the-outcome)
+3. [Screenshots](#screenshots)
+4. [Architecture](#architecture)
+5. [How it works, step by step](#how-it-works-step-by-step)
+6. [Key design decisions](#key-design-decisions)
+7. [Responsible AI and data protection](#responsible-ai-and-data-protection)
+8. [Technology stack](#technology-stack)
+9. [Quality and engineering practice](#quality-and-engineering-practice)
+10. [Getting started](#getting-started)
+11. [Repository layout](#repository-layout)
+12. [For hiring managers and recruiters](#for-hiring-managers-and-recruiters)
+
+---
+
+## Summary
+
+The **Women on Boards (WOB) Awards** recognise women in corporate governance across eleven award categories, from *Woman Executive Leader of the Year* to *Rising Star in Corporate Governance*. Every year a committee has to compare shortlisted finalists fairly, using CVs, nomination forms, supporting documents and public records.
+
+This system does the reading, cross-checking and first-pass scoring, and leaves the decisions to people:
+
+- **It builds a private evidence base for each finalist.** Uploaded documents are virus-scanned, OCR'd where needed, split into passages and indexed for both meaning and keywords.
+- **It extracts factual claims** (roles, achievements, outcomes) and checks every quoted sentence against the source document.
+- **It researches public sources.** Claude searches the web for registries, regulators and organisation websites that confirm or contradict each claim, and evidence for each award criterion.
+- **It proposes a rating for every finalist on every criterion**, citing the passages it relied on. Citations that can't be verified are discarded.
+- **Reviewers approve or adjust each rating**, and the system produces provisional rankings, PDF deliberation reports and a judges' pack.
+
+> **AI rankings are advisory.** The committee retains responsibility for deliberation and winner approval. The system is designed so that every number traces back to quoted evidence and a named human decision.
+
+The system implements the *AI-Powered RAG Technical Specification v1.0* and runs in production, where it was used for the 2026 awards.
+
+---
+
+## The problem and the outcome
+
+| Before | With this system |
+|---|---|
+| Judges read hundreds of pages per category by hand, under time pressure | Evidence is indexed once; every rating comes with the passages that justify it |
+| Claims in nominations were taken on trust or checked ad hoc | Each claim is linked to its source quote; public sources are found and verified automatically |
+| Scoring varied between judges, with no audit trail | A versioned, frozen rubric; every AI rating, human adjustment and decision is audit-logged |
+| Comparing finalists meant spreadsheets and email | Deterministic rankings, tie detection, PDF reports and a judges' pack in one place |
+
+**In production:**
+- **Research at scale:** 456 public-source findings were accepted automatically under the credibility rules.
+- **Claim linking:** 113 research findings were linked to the claims they support, across 68 candidates.
+- **Rule changes absorbed in days:** a change of rating scale (1–5 to 0–3), a jury ruling on supporting documents, and new nomination-form evidence.
+
+---
+
+## Screenshots
+
+> All screenshots use a separate demo database with **fictional nominees and organisations**. No real nomination data is shown.
+
+<table>
+<tr>
+<td width="50%"><b>Dashboard</b>: progress of the evidence pipeline and the top-ranked finalists across categories.<br><br><img src="docs/images/screenshots/dashboard.png" alt="Dashboard with finalist counts, pipeline progress and top-ranked finalists"></td>
+<td width="50%"><b>Finalist evidence summary</b>: ratings per criterion, overall score on the rubric's scale, and evidence sources.<br><br><img src="docs/images/screenshots/nominee-summary.png" alt="Finalist page with ratings per criterion and overall score"></td>
+</tr>
+<tr>
+<td><b>Claims and verification</b>: every claim quotes its source; supporting documents verify claims under the jury's rule.<br><br><img src="docs/images/screenshots/nominee-claims.png" alt="Claims extracted from evidence, each with its verified quote"></td>
+<td><b>External research</b>: public sources found by Claude, quote-checked against the fetched page, accepted automatically when credible.<br><br><img src="docs/images/screenshots/nominee-research.png" alt="Public source finding with highlighted quote and auto-accepted badge"></td>
+</tr>
+<tr>
+<td><b>Provisional ranking</b>: deterministic scores on a frozen rubric, tie and close-result detection, ratings per criterion.<br><br><img src="docs/images/screenshots/category-ranking.png" alt="Ranking table with scores, ties and criterion ratings"></td>
+<td><b>Judges' pack</b>: each category's top three finalists with their reports and documents.<br><br><img src="docs/images/screenshots/judges-pack.png" alt="Judges' pack with top three finalists, reports and documents"></td>
+</tr>
+<tr>
+<td><b>AI costs</b>: estimated spend per pipeline step from recorded token and search usage.<br><br><img src="docs/images/screenshots/ai-costs.png" alt="Bar chart of estimated AI cost per pipeline step"></td>
+<td><b>Knowledge base</b>: all indexed evidence, searchable and filterable by category, finalist and type.<br><br><img src="docs/images/screenshots/knowledge-base.png" alt="Knowledge base table of indexed documents with filters"></td>
+</tr>
+</table>
+
+---
+
+## Architecture
+
+### System architecture
+
+A single DigitalOcean server runs the whole stack in Docker. Only Caddy is reachable from the internet; everything else talks over an internal network.
+
+```mermaid
+flowchart LR
+    U["Committee, reviewers<br/>and judges<br/>(browser)"] -->|HTTPS| C["Caddy<br/>TLS and security headers"]
+    C --> W["Next.js 16 web app<br/>React and TypeScript"]
+    W -->|"/api proxy"| A["FastAPI API<br/>auth, MFA, RBAC, audit"]
+    A <--> DB[("PostgreSQL 17<br/>pgvector and full-text search<br/>append-only audit log")]
+    A <--> FS[("Encrypted file store<br/>AES-256-GCM per file")]
+    K["Background worker<br/>ingest, claims, research,<br/>assessment, matching"] <--> DB
+    K <--> FS
+    K -->|"stream each upload"| AV["ClamAV<br/>malware scan"]
+    K -->|"local ONNX models"| EM["Embeddings and reranker<br/>nomic-embed, jina-reranker"]
+    K -->|"structured outputs"| CL["Claude<br/>Anthropic API or OpenRouter"]
+    CL -.->|"web_search and web_fetch"| WEB["Public web"]
+    K -.->|"metadata only"| LS["LangSmith tracing"]
+```
+
+### The RAG pipeline
 
 ![RAG pipeline: documents are scanned, extracted, chunked and embedded into PostgreSQL with pgvector; queries use hybrid retrieval and reranking to pick passages that Claude reads, and every cited quote is verified before human review, ranking and reports.](docs/images/rag-pipeline.svg)
 
-**Indexing.** When the coordinator uploads documents:
-1. The background worker scans each file for viruses.
-2. It extracts the text, using OCR for scans.
-3. It splits the text into overlapping chunks of about 700 tokens.
-4. It embeds the chunks locally.
-5. It stores them in PostgreSQL with pgvector, alongside a full-text keyword index.
+### Assessing one criterion
 
-**Querying.** A query is a rubric criterion, a claim to check, or a search.
-1. Hybrid retrieval searches that finalist's evidence only, by meaning and by exact words.
-2. A reranker picks the 10 best passages.
-3. Claude reads those passages and returns claims or a rating on the rubric's scale, each citing its quotes.
-4. Every quote is checked against the passage it cites.
-5. Reviewers approve or adjust each rating before it counts towards the ranking and reports.
+How a single rating is produced. The AI never sees another finalist's evidence, and nothing it says counts until it is verified and reviewed.
 
-## Layout (spec §15)
-
+```mermaid
+sequenceDiagram
+    autonumber
+    participant W as Worker
+    participant R as Hybrid retriever
+    participant DB as PostgreSQL + pgvector
+    participant C as Claude
+    participant V as Citation verifier
+    participant H as Reviewer
+    W->>R: criterion text, finalist ID
+    R->>DB: vector search and keyword search,<br/>filtered to this finalist only
+    DB-->>R: top candidates from each
+    R->>R: reciprocal rank fusion, then cross-encoder rerank
+    R-->>W: 10 best passages, plus accepted public sources
+    W->>C: rubric scale, criterion, claims with status, passages
+    C-->>W: rating, rationale, quoted citations (JSON schema)
+    W->>V: check every quote against its cited passage
+    V-->>W: verified citations, discarded ones, flags
+    W->>DB: store the rating, citations and flags
+    H->>DB: approve, adjust with a reason, or reject
 ```
-backend/          FastAPI app, Alembic migrations, tests
-frontend/         Next.js coordinator UI
-ai/               prompts, rubrics, evaluation sets, output schemas
-infrastructure/   docker compose (Postgres 17 + pgvector), deployment
-docs/             architecture, API, operations
+
+### Data model at a glance
+
+```mermaid
+erDiagram
+    AWARD_CATEGORY ||--o{ RUBRIC_VERSION : "versioned, frozen"
+    RUBRIC_VERSION ||--o{ RUBRIC_CRITERION : has
+    AWARD_CATEGORY ||--o{ FINALIST_CATEGORY : shortlists
+    FINALIST ||--o{ FINALIST_CATEGORY : "nominated in"
+    FINALIST_CATEGORY ||--o{ DOCUMENT : uploads
+    DOCUMENT ||--o{ DOCUMENT_CHUNK : "indexed as"
+    FINALIST_CATEGORY ||--o{ CLAIM : "extracted"
+    CLAIM ||--o{ CLAIM_EVIDENCE : "quotes"
+    CLAIM ||--o{ VERIFICATION_REVIEW : "append-only"
+    FINALIST_CATEGORY ||--o{ EXTERNAL_SOURCE : "researched"
+    ASSESSMENT_RUN ||--o{ CRITERION_ASSESSMENT : rates
+    CRITERION_ASSESSMENT ||--o{ ASSESSMENT_CITATION : cites
+    ASSESSMENT_RUN ||--o{ RANKING_SNAPSHOT : "immutable"
+    RANKING_SNAPSHOT ||--o{ REPORT : "PDF"
 ```
 
-## Local setup
+---
 
-Requires Docker and [uv](https://docs.astral.sh/uv/).
+## How it works, step by step
+
+| # | Step | What happens | Who |
+|---|---|---|---|
+| 1 | **Set up the category** | Coordinators create award categories and a rubric: criteria, evidence expected, weights, and the rating scale (0 None, 1 Poor, 2 Good, 3 Excellent). The committee approves and freezes it; a frozen rubric can't change. | Coordinator, committee |
+| 2 | **Shortlist and record consent** | Finalists are added with their consent: assessment, AI processing, and public-web research are recorded separately and enforced. | Coordinator |
+| 3 | **Collect evidence** | CVs and supporting documents are uploaded, or nomination-form exports are imported (contact details stripped). | Coordinator |
+| 4 | **Ingest** | Each file is streamed through ClamAV, extracted (with Tesseract OCR for scans), split into ~700-token passages and embedded locally. Passages are indexed in pgvector and Postgres full-text search. | Worker |
+| 5 | **Extract claims** | Claude lists the factual claims the evidence makes, each with exact quotes. Quotes that aren't in the passage are discarded. Claims backed by a supporting document are verified under the jury's ruling; the rest go to a reviewer. | Worker, reviewer |
+| 6 | **Research public sources** | Claude searches the web and fetches pages. A finding is kept only if its quote appears in a page fetched in that run. Supporting findings from registries, regulators or the organisation's own site, about this nominee, are accepted automatically and linked to the claims they support. | Worker |
+| 7 | **Assess** | For every finalist × criterion: hybrid retrieval, reranking, a Claude rating with citations, and mechanical citation checks. Uncited ratings above the lowest level can't be approved. | Worker |
+| 8 | **Review** | Reviewers approve, adjust (with a reason) or reject each rating. Rejected ratings count as missing, not zero. | Reviewer |
+| 9 | **Rank** | A deterministic score (mean or weighted mean) per finalist, competition ranks, ties and close results flagged. Snapshots are immutable. | Coordinator |
+| 10 | **Report and deliberate** | PDF category and individual reports with cited evidence and questions for judges; the judges' pack collects the top three per category. | Committee, judges |
+| 11 | **Calibrate (optional)** | Committee members rate the same items blind; quadratic-weighted kappa compares the AI with them and with each other. | Committee |
+
+---
+
+## Key design decisions
+
+- **Evidence isolation.** Retrieval filters to one finalist inside both searches, and re-checks every returned passage. Cross-finalist evidence would be an integrity failure, so it raises an error rather than a warning.
+- **Verify, don't trust, the model.** Claims, research findings, assessment citations and claim links are all quote-checked against the exact source text. The model proposes; deterministic code decides what counts.
+- **Structured outputs everywhere.** Every Claude call returns JSON against a Pydantic schema, constrained to the rubric's rating scale.
+- **Hybrid retrieval.** Dense vectors (nomic-embed, local ONNX) plus Postgres full-text search, merged by reciprocal rank fusion and reranked by a local cross-encoder. Names, dates and figures that embeddings miss are still found.
+- **The database is the last line of defence.** Frozen rubrics, append-only audit and review tables, immutable rankings, rating-scale checks and consent rules are enforced by PostgreSQL triggers and constraints, not only by application code. A privileged, audited path exists for data-protection purges.
+- **Human decisions are first-class data.** Every review stores who, when, why and what changed. Automatic decisions (the jury rule, credible-source acceptance) record their basis and can always be overturned by a person.
+- **Versioned everything.** Rubrics, prompts, the retrieval configuration and the ranking calculation all carry versions, so a report from last week can be explained exactly.
+- **Operability.** Background jobs are idempotent and resumable (`FOR UPDATE SKIP LOCKED` queues with retries), and deploys run the catch-up commands automatically. Per-container memory caps keep one service from taking the server down.
+
+---
+
+## Responsible AI and data protection
+
+The system processes personal data about nominees, so data protection shaped the design from the start. A data protection review against Uganda's Data Protection and Privacy Act 2019 is in [`docs/operations/data-protection-review.md`](docs/operations/data-protection-review.md).
+
+- **Consent in three parts** (assessment, AI processing, web research), enforced at every step that needs it.
+- **Least privilege.** Role-based access for admin, secretariat, committee, reviewer and judge. Invitation-only accounts with TOTP two-factor authentication for privileged roles.
+- **Encryption at rest.** Every stored file has its own data key (AES-256-GCM envelope encryption). Deleting a file destroys its key.
+- **Retention and erasure.** Per-category retention dates, a purge that crypto-shreds files and redacts audit details, and subject-access exports.
+- **Minimisation.** Imported forms drop emails, phone numbers and dates of birth before anything reaches the AI. LangSmith tracing is metadata-only, enforced in code and covered by a test.
+- **Blind calibration.** Raters in an open calibration study can't see AI ratings, rankings or reports for that category.
+- **Advisory by design.** Every screen, report and ranking says the committee decides; practice rankings on unfrozen rubrics are labelled as such.
+
+---
+
+## Technology stack
+
+| Layer | Technologies |
+|---|---|
+| **AI** | Claude Opus 5.5 (claims, assessment, matching), Claude Haiku 5.5 (web research), Anthropic API with server-side web search and fetch, OpenRouter support, structured JSON outputs, adaptive thinking |
+| **Retrieval** | PostgreSQL 17 + pgvector, Postgres full-text search, reciprocal rank fusion, `nomic-embed-text-v1.5` and `jina-reranker-v1-turbo-en` via FastEmbed (ONNX, on the server) |
+| **Backend** | Python 3.12, FastAPI, SQLAlchemy 2, Alembic (18 migrations), Pydantic, a background worker, ReportLab PDFs, Tesseract OCR, ClamAV |
+| **Frontend** | Next.js 16, React, TypeScript, accessible custom UI with light and dark themes |
+| **Security** | Argon2id passwords, TOTP MFA, HttpOnly SameSite sessions, RBAC, AES-256-GCM file encryption, Caddy-managed TLS |
+| **Observability** | LangSmith (metadata-only traces), an AI cost dashboard, a structured audit log |
+| **Infrastructure** | Docker Compose, Caddy, DigitalOcean, image builds off-server, an SSH deploy script |
+| **Tooling** | uv, pytest, Ruff, TypeScript compiler, Git and GitHub |
+
+---
+
+## Quality and engineering practice
+
+| Measure | Value |
+|---|---|
+| Automated tests | **225+**, against a real PostgreSQL + pgvector database rebuilt from migrations on every run, downgrades included |
+| Application code | ~14,600 lines of Python, ~6,800 lines of TypeScript |
+| Test code | ~6,400 lines |
+| API endpoints | 73, documented via OpenAPI at `/docs` |
+| Database migrations | 18, each reversible |
+
+- **AI calls are tested without calling the AI.** Scripted model doubles exercise the full pipelines: prompt contents, schema handling, quote verification, retries, refusals and failure recovery.
+- **Behaviour the database enforces is tested at the database level:** frozen rubrics, append-only tables, rating scales and consent rules.
+- **Privacy guarantees have tests:** no contact details in imported documents, no prompt or output text in traces.
+- **Commits are small and explained.** Each change ships with tests and documentation.
+
+---
+
+## Getting started
+
+Requires Docker, [uv](https://docs.astral.sh/uv/) and Node.js.
 
 ```bash
-cp .env.example .env          # set POSTGRES_PASSWORD (and both URLs) and SECRET_KEY
-make db-up                    # Postgres + pgvector on 127.0.0.1:5432 (creates wob and wob_test)
-make migrate                  # apply schema to wob
+cp .env.example .env          # set POSTGRES_PASSWORD, both database URLs and SECRET_KEY
+make db-up                    # PostgreSQL + pgvector on 127.0.0.1:5432
+make migrate                  # apply the schema
 make user EMAIL=you@org NAME="Your Name" ROLE=admin   # prints a set-password link
-make test                     # rebuilds wob_test from scratch, runs the suite
-make api                      # API in Docker on http://127.0.0.1:8000 (docs at /docs)
-cd frontend && npm install    # once
-make web                      # coordinator UI on http://localhost:3000
-make worker                   # ClamAV + ingestion worker in Docker (first start: ~5 min)
-make benchmark                # retrieval recall benchmark (see ai/evaluation/README.md)
+make test                     # rebuilds the test database and runs the suite
+make api                      # API on http://127.0.0.1:8000 (OpenAPI docs at /docs)
+cd frontend && npm install && cd ..
+make web                      # web app on http://localhost:3000
+make worker                   # ClamAV + background worker
 ```
 
-The API and worker run in Docker because the local embedding and reranking models need ONNX Runtime, which has no build for Intel Macs. `make api-local` runs the API on the host with reload, but without those models search falls back to keywords only.
+AI features stay off until `LLM_PROVIDER`, an API key and `EXTERNAL_AI_PROCESSING_APPROVED=true` are set (see `.env.example`). Production runs with `infrastructure/deployment/deploy.sh`.
 
-## Evidence knowledge base
+The full behaviour, every rule and every operating command are in the **[technical reference](docs/technical-reference.md)**.
 
-The awards coordinator works through **Category → Candidate → Documents**:
+---
 
-1. Create the award categories (until the committee's 11 categories are seeded).
-2. Add each category's shortlisted candidates. A person shortlisted in two categories is added to each one, and their evidence is kept separately per category.
-3. Upload the candidate's files: PDF, DOCX, XLSX, PNG/JPG, or a ZIP of these (50 MB per file). Choose *Nomination form* or *Supporting document*.
+## Repository layout
 
-Uploading to a specific candidate counts as the coordinator's confirmation of the candidate–document mapping (FR-03). Each upload goes through these checks:
+```
+backend/          FastAPI app, worker, services, Alembic migrations (SQL), 225+ tests
+frontend/         Next.js web app (App Router, TypeScript)
+ai/               prompts, rubrics, output schemas and the retrieval evaluation set
+infrastructure/   Docker Compose for development and production, Caddy, deploy script
+docs/             technical reference, data protection review, architecture images, screenshots
+```
 
-- **File type** is detected from the content, not the file name.
-- **ZIP files** are expanded with limits on member count and total size. Nested archives, encrypted entries and unsafe paths are rejected.
-- **Duplicates** (same SHA-256 for the same candidate) are skipped.
-- **Every upload is audited.** Each request also carries an idempotency key, so retrying a request doesn't store files twice.
+---
 
-Originals can't be deleted. A mistaken upload is *withdrawn* with a reason: it stays on record for the audit trail and is excluded from the knowledge base.
+## For hiring managers and recruiters
 
-### Processing pipeline
+**What this project is:** a complete, production AI system, built and run end to end, for a real organisation with real deadlines, real personal data and a committee that has to stand behind its decisions.
 
-The ingestion worker (`app/workers/ingest.py`, run by `make worker`) turns uploads into searchable evidence:
+**My role.** I led the project from specification to production:
 
-1. **Integrity and malware check:** the stored file's SHA-256 must match the upload, then ClamAV scans it. Infected files are *rejected* and never parsed.
-2. **Extraction:**
-   - PDFs: text, headings (by font size) and ruled tables, with page numbers. Pages with no text layer are OCR'd with Tesseract.
-   - Word: headings, paragraphs and tables in document order.
-   - Excel: one table per sheet.
-   - Images: OCR'd.
+- **Product and requirements:** translated the client's technical specification (v1.0: functional requirements, schema, API and acceptance tests) into a working system, then adapted it as the client's rules changed. That meant a new rating scale, a jury ruling on evidence, new award criteria, and nomination forms arriving mid-cycle.
+- **Architecture:** designed the RAG pipeline, the per-finalist evidence isolation, the verification-first approach to model output, and the database-enforced governance model.
+- **AI engineering:** prompt and schema design, hybrid retrieval and reranking, quote-verified citations, credible-source rules for web research, calibration statistics, cost tracking and privacy-safe tracing.
+- **Full-stack delivery:** FastAPI backend, background worker, PostgreSQL schema and migrations, and a Next.js interface for coordinators, reviewers, the committee and judges.
+- **Security and data protection:** consent model, RBAC and MFA, file encryption, retention and erasure, and a data protection review under Uganda's DPPA 2019.
+- **Operations:** deployed and ran it on DigitalOcean. That included diagnosing a production outage (memory exhaustion during on-server builds), then moving builds off the server and adding per-container limits.
 
-   Quality indicators (pages, OCR pages and confidence, empty pages, warnings) are stored on the document.
-3. **Chunking:** about 700 tokens per chunk (900 at most) with ~100 tokens of overlap. Each chunk carries its section path and page range. Tables are kept whole, or split row by row with the header repeated.
-4. **Embedding and indexing:** chunks are embedded (by default `nomic-embed-text-v1.5`, run locally, so evidence never leaves the server) and stored with a full-text index. Retrieval reads the `knowledge_base_chunks` view, which includes only indexed, non-withdrawn documents.
+**How it was built.** I used Claude Code as an AI pair programmer throughout. I set the direction, made the design and governance decisions, worked with the client on their rules, reviewed and tested the changes, and operated the system in production. Using AI tools well, with tests, verification and clear accountability, is itself part of the engineering this project demonstrates.
 
-Postgres is the job queue (`FOR UPDATE SKIP LOCKED`), so several workers can run side by side.
-- **Temporary failures** (for example, the scanner is down) retry with backoff: 1, 2, 4, 8 minutes, then the worker gives up.
-- **Unreadable files** (corrupt or password-protected) are rejected.
-- **Retrying:** coordinators can retry failed or rejected documents from the UI.
-- **Checking the text:** *View text* shows exactly what was indexed.
+**Skills demonstrated:** retrieval-augmented generation · LLM application engineering (Claude, structured outputs, tool use) · vector and hybrid search · Python and FastAPI · PostgreSQL design · TypeScript and Next.js · testing strategy · security and privacy engineering · cloud deployment and incident response · working with non-technical stakeholders.
 
-Without Docker, `uv run python -m app.workers.ingest` runs the worker on the host. That needs Tesseract installed and `uv sync --extra local-embeddings`, or `EMBEDDING_PROVIDER=voyage`.
+### Concluding remarks
 
-**Files are encrypted at rest.** Each file is encrypted with its own AES-256-GCM key, which is wrapped by a key from `FILE_ENCRYPTION_KEYS`; see `app/services/storage.py`. Without a key configured, the system refuses to store files. Maintenance commands:
-- `make encrypt-storage`: encrypts legacy plaintext files.
-- `make rotate-file-key`: re-wraps file keys to a new master key without re-encrypting the files.
-- `make verify-storage`: decrypts every file and checks it against the SHA-256 recorded in the database.
+Most AI demos stop at "the model gave an answer". This project is about everything that has to be true before an organisation can **rely** on that answer:
+- the evidence is the right person's;
+- every quote is real;
+- every score is reproducible;
+- every decision is attributable to a person;
+- personal data is handled lawfully;
+- the system keeps running when the requirements change in the final week.
 
-Back the keys up separately from the data: losing them makes every stored file unreadable.
+That combination of AI capability, engineering discipline and responsibility is what I bring to a team.
 
-**Data protection:** see [docs/operations/data-protection-review.md](docs/operations/data-protection-review.md). Real nomination data must not be loaded, and the AI features must stay off, until its action plan is complete.
+<div align="center">
 
-Set `EMBEDDING_DIM` to match the chosen embedding model **before** the first migration. Changing it later requires a new migration and re-embedding all chunks.
+**Samuel Mugisha** · [github.com/samuelmugisha](https://github.com/samuelmugisha)
 
-### Importing nomination forms
-
-`python -m app.cli import-form-evidence FILE --as EMAIL` takes a Google Forms export (`.xlsx`, one sheet per award category; `-` reads it from standard input) and attaches each response, as a supporting document, to the finalist of the same name in that category. Matching ignores case, accents, punctuation, word order and titles such as Dr or Mrs. A sheet matches the category whose name starts with its title (Sheets cuts titles at 31 characters) or the one category containing all its words. Where names differ more than that, a person decides: `--sheet "SHEET=category-code"` and `--name "NAME IN FORM=NAME IN APP"`, each repeatable.
-
-- **What goes in the document:** the nominee's organisation and title, every written answer under its question, and each referee's name and organisation. Emails, phone numbers, date of birth and the declaration are left out, because the documents go to the AI and to research. Uploaded-file answers are Google Drive links the server can't open, so they're listed for a coordinator to fetch and upload.
-- **What it skips:** responses that match no finalist, nominees who withdrew consent to assessment (or haven't given it when uploads require consent), and nominees already imported.
-- **Profile details:** where the system has no organisation or title for a nominee, the form's are used.
-- **Afterwards:** claim extraction is queued for each nominee who got a document. The worker indexes the documents first, so under the jury decision the claims they support are verified.
-- **Preview first:** without `--yes` it only shows what it would do. Only admin and coordinator accounts can run it, and each import is audited as `nomination_form.imported`.
-- **Running it on the server** without leaving a copy there: `ssh … 'cd /opt/wob/infrastructure/deployment && docker compose --env-file /etc/wob/env exec -T api python -m app.cli import-form-evidence - --as EMAIL' < WOB_Evidence.xlsx`. Keep these exports in `docs/attachments/`, which git ignores.
-
-### Hybrid retrieval
-
-`GET /api/v1/categories/{category}/finalists/{finalist}/search?q=…` (or `?criterion_id=…`) returns the passages an assessor sees for a question or rubric criterion (spec §5.3, FR-05). The same search is in the UI under *Search this candidate's evidence*.
-
-1. **Candidate filter first.** Both searches run only over this finalist-category's chunks in `knowledge_base_chunks`, so withdrawn and unprocessed documents never appear. Every result is re-checked before it is returned.
-2. **Vector search:** exact cosine top 20, using the same embedding model as the passages. Exact rather than approximate search avoids HNSW-with-filter shortfalls; a candidate has at most a few hundred chunks.
-3. **Keyword search:** Postgres full text, top 20. The query's terms are ORed, so long criterion descriptions still match.
-4. **Fusion and reranking:** reciprocal rank fusion (k = 60) merges the lists, then a cross-encoder (`jina-reranker-v1-turbo-en`, local) reranks. The top 10 passages are returned (configurable 1–50).
-5. **Flags** warn the assessor about thin or uncertain retrieval: `no_indexed_evidence`, `few_passages`, `no_keyword_matches`, `some_evidence_not_embedded_with_current_model` and `low_relevance`. `low_relevance` stays off until `RERANK_MIN_SCORE` is calibrated on the pilot.
-
-Each response records the model IDs and settings used, and each search is written to the audit log with the passages it returned. `POST …/citations/verify` checks that cited passage IDs belong to this candidate and that the quoted text really occurs in them (spec §13: 100% citation resolution).
-
-### Claim extraction (FR-06)
-
-`POST …/claims/extract` (or *Extract claims* on the candidate page) queues a run. The worker sends the candidate's indexed passages to Claude Opus 5.5 (`claude-opus-5-5`). Settings: adaptive thinking, effort `high`, JSON-schema structured output, server-side refusal fallback. Prompt: `app/prompts/claim_extraction.py`, versioned and stored with every run. Claude returns claims with their claim type, role, organisation, period and figures, plus contradictions and missing information.
-
-Nothing the model returns is trusted as-is:
-- **Quotes:** every quote must occur in the passage it cites. Claims without a verifiable supporting quote are discarded and listed on the run.
-- **Status:** claims start `unverified`, or `disputed` when contradicting evidence was quoted. Verification is the reviewers' job (FR-07).
-- **Large evidence sets:** they are split into batches, and a batch whose output is too long for one response is split in half and retried.
-- **Re-runs:** a re-run supersedes the previous claims, which are kept for history.
-
-**Off by default.** This sends nomination evidence, which is personal data, to Anthropic: cross-border processing that spec §12 requires to be reviewed first. It runs only with `LLM_PROVIDER=anthropic`, `EXTERNAL_AI_PROCESSING_APPROVED=true` and an `ANTHROPIC_API_KEY`. Until then the API and the UI say why it is off.
-
-### Claim verification (FR-07)
-
-Reviewers, coordinators and admins record a decision on each claim (`POST /api/v1/claims/{id}/reviews`, or *Review* under each claim in the UI). Judges and committee members can see decisions but not make them. Each decision is an append-only review row, and the claim's status is the latest decision.
-
-| Decision | Rule |
-|---|---|
-| verified | At least one supporting document still in the knowledge base. Notes optional. |
-| corroborated | Supporting quotes from two or more distinct documents. Notes required: say why they are independent. |
-| disputed / missing / reset to unverified | Notes required. |
-
-- **Sufficiency and credibility:** reviewers can rate evidence sufficiency and source credibility separately (spec §6).
-- **No silent overwrites:** each request carries the status the reviewer saw (`expected_status`). If someone else has changed it since, the request returns 409 instead of overwriting their decision.
-- **Contradictions:** contradictions found during extraction are resolved with a written resolution (`POST /api/v1/claim-extraction-runs/{id}/contradictions/{index}/resolutions`).
-- **Re-extraction:** a review carries over to an identical claim only when that claim isn't contradicted and still meets its rule. The carried review is marked as such. All other claims need reviewing again.
-- **Progress:** the category page shows how many claims each candidate has had reviewed.
-- **Jury decision: supporting documents are a credible source of truth (23 October 2026).** When claims are extracted, every new claim that a passage of a non-withdrawn *supporting document* supports is marked verified automatically. Claims contradicted by any evidence, and claims backed only by the nomination form, are left for a reviewer. The decision is recorded with no reviewer and basis `jury_supporting_documents` (database-enforced: it can only verify). It shows as "Jury decision (automatic)" and is audited as `claim.verified_automatically`. A reviewer can still change it, and it carries forward on re-extraction like any review. Claims extracted earlier are verified by `make verify-supporting-claims` (`python -m app.cli verify-supporting-claims`), which `deploy.sh` runs after every deploy and which skips claims anyone has already decided on. `JURY_VERIFIES_SUPPORTING_DOCUMENTS=false` stops new automatic verifications.
-
-### External research (FR-13)
-
-*Research public sources* on the candidate page, or `POST …/research`, queues a run for reviewers and coordinators. Claude searches the web for credible sources (registries, regulators, organisation websites, annual reports, professional bodies, established news) with two aims: confirming or contradicting the candidate's current claims, and finding public evidence for each criterion of the category's current rubric. Research needs claims or a rubric, so candidates who uploaded no documents can still be researched by criterion. Social and user-generated sites are excluded (`RESEARCH_BLOCKED_DOMAINS`). The run uses the `web_search_20250305` and `web_fetch_20250910` tools, the versions without dynamic filtering, so that every fetched page comes back verbatim.
-
-- **Quotes are checked.** A finding is kept only if its quote appears in a page fetched during that run (PDFs are read locally). Anything else is discarded and listed, with the reason.
-- **Credible supporting findings are accepted automatically.** A finding is accepted without a reviewer when it supports its claim or criterion, comes from an official registry, regulator, annual report or professional body (recorded as high credibility) or the organisation's own website (medium), and Claude was highly confident the page is about this nominee. It is labelled *Auto-accepted*, logged as `external_source.auto_accepted`, and not accepted again when a later run finds the same page for the same claim or criterion. A reviewer can still reject it, with notes, which removes it from the claim's evidence. Findings from research run before this rule existed are accepted by the same rules with `make auto-accept-research` (in production: `docker compose --env-file /etc/wob/env exec api python -m app.cli auto-accept-research`); running it again changes nothing.
-- **Everything else waits for a reviewer.** This includes evidence that contradicts a nominee, news and other sites, and possible namesakes. Accepting requires a credibility rating. If Claude was not highly confident the page is about this nominee rather than a namesake, the reviewer must also confirm identity. Rejecting requires notes. The database enforces all of these rules.
-- **Accepted sources become claim evidence.** Each distinct website counts as one independent source toward *corroborated*. Accepted sources stay attached when an identical claim is re-extracted.
-- **Accepted criterion findings go to assessment.** They are tagged with the criterion's code and name as they stood at research time, and are given to the AI as public sources (S#) when it rates the candidate on any criterion. A reviewer-accepted one doesn't attach to a claim, so it doesn't count toward *corroborated*.
-- **Auto-accepted criterion findings are linked to the claims they support.** After each research run, Claude reads the candidate's current claims and the auto-accepted criterion sources and says which claims each source directly supports. A link is kept only if its quote occurs in the source; it then shows as public evidence on the claim and counts toward *corroborated*, and each link is audited as `external_source.matched_to_claim`. Sources are matched once, and again against new claims after re-extraction. Matching needs claim extraction enabled and the candidate's consent to AI processing, and a failure never fails the research or extraction run. Rejecting the source removes its links. Earlier research is matched with `make match-research-claims` (`python -m app.cli match-research-claims`), which `deploy.sh` runs after every deploy.
-- **"Not found online" is neutral.** It is listed, never counted against a nominee (spec §6). The prompt also forbids researching private life or sensitive personal attributes.
-- **Off by default.** Research runs only with `RESEARCH_ENABLED=true` in addition to the claim-extraction approval settings, because it sends nominee names and claims to Anthropic and searches the web about them.
-
-### Rubrics, assessment and ranking (FR-08 to FR-10)
-
-**Rubrics.** Each category has versioned rubrics, managed on the category page. Coordinators create and edit drafts. *New draft from version N* copies the frozen version in use (or, before any is frozen, the version shown): its criteria, descriptions, evidence expected, weights and weighting. Only a category with no rubric yet starts from the illustrative template, labelled as such. *Discard draft* deletes a draft nobody has used (`DELETE /api/v1/rubrics/{id}`, audited); a draft used by an assessment run, ranking or calibration study is kept as their record. While a newer draft is being prepared, the category page shows it for editing and notes that the earlier frozen version stays in use until the draft is frozen. The committee or an admin approves and then freezes a rubric. A frozen rubric can't be changed (database-enforced), and assessments use the latest frozen version, or the latest draft until one exists.
-
-**Rating scales.** The board moved from the original 1–5 scale to **0–3**: 0 None (no evidence that the criterion is met), 1 Poor (weak, partial or indirect evidence), 2 Good (clear evidence) and 3 Excellent (strong, well-evidenced and outstanding). Each rubric version records its scale. New versions use 0–3, and versions created before the change keep 1–5, so their ratings, rankings and reports stay valid. The scale can be changed on a draft that nobody has rated. The AI prompt, its output schema, reviews, human ratings, calibration, ranking points, reports and the screens all follow the scale of the rubric in use. Any rating above the lowest level (2+ on 1–5, 1+ on 0–3) needs a verified supporting citation to be approved, and the database rejects any rating outside its version's scale.
-
-**Administrator changes.** Only an admin can unfreeze a rubric (back to approved, with a reason recorded in the audit log) or amend an approved one. An amendment stays approved under the admin's name, and the audit log records the criteria before and after. Criteria are updated in place by code, so ratings already made stay linked to them; a criterion that has ratings can be reworded but not removed. Rankings keep the rubric status they were calculated under, so earlier production rankings stay production. The database allows these changes only when the application sets `wob.rubric_admin` for the transaction.
-
-**Assessment.** `POST /api/v1/assessments` queues a run for a category. For every finalist and criterion, the worker:
-1. retrieves that finalist's top passages for the criterion through hybrid search;
-2. adds the finalist's claims with their verification status, and any accepted public sources;
-3. asks Claude Opus 5.5 (prompt `app/prompts/criterion_assessment.py`) for a rating on the rubric's scale (see *Rating scales*), with a rationale, citations, evidence sufficiency and reasons for review.
-
-Each request sees one finalist only. Citations are checked against the evidence. A rating of 2 or more without a verified supporting citation is flagged `uncited_rating` and can't be approved. Each result is saved as soon as it's made, so a failed run resumes where it stopped.
-
-**Quality review.** Reviewers approve each rating, adjust it with a reason (the AI's rating is kept), or reject it for re-assessment.
-
-**Ranking.** `POST /api/v1/rankings` calculates a snapshot from a completed run:
-- Score: the mean of the effective ratings, or the weighted mean.
-- Order: ranked on exact decimal scores, displayed to 2 decimals and as points out of 100 (×20 on 1–5, ×100/3 on 0–3).
-- Ties share a rank and stay provisional.
-- Rejected or missing ratings leave a finalist unscored rather than partially averaged, and unreviewed ratings are listed.
-- Close results (within 0.25) are highlighted.
-- Snapshots are append-only.
-- Only snapshots taken on a frozen rubric count as production; the rest are shown as practice rankings.
-
-The arithmetic is covered by reference tests (`tests/test_ranking_math.py`).
-
-### AI calibration (FR-15)
-
-Before AI ratings are relied on, committee raters rate the same items blind, and the AI is compared with them (*AI calibration* on the category page).
-
-1. **Creating a study.** Admins, coordinators or committee members create a study from the latest completed assessment run. It covers every AI-rated finalist × criterion item, and they name the raters (committee, judges, reviewers or admins).
-2. **Rating blind.** Until each rater submits, the category's AI ratings, ranking, reports and assessment reviews are hidden from them. Their worksheet (`/calibration/{id}`) shows only the criterion and the finalist's evidence. They rate on the study's rubric scale and confirm, when submitting, that they rated without seeing the AI's output.
-3. **Results.** The AI's original (pre-review) ratings are compared with every rater:
-   - **Measures:** quadratic-weighted kappa, exact and within-one-point agreement, bias (AI minus the human average) and mean absolute difference, overall and per criterion.
-   - **Baseline:** the same figures for rater vs rater, so the AI is judged against how far the committee itself agrees.
-   - **Code:** `app/services/calibration_metrics.py`, with hand-verified reference tests.
-4. **Closing.** Closing a study stores an immutable result (database-enforced): *passed*, *failed* or *inconclusive* (fewer than 20 items, or no variation).
-   - **Thresholds** are proposals for the committee to confirm: kappa at least 0.6 and within 0.1 of the raters' own; within one point at least 90% of the time; bias within ±0.5 overall and ±0.75 per criterion.
-   - **Where it shows:** the latest result appears next to the ranking and in every report's provenance.
-
-AI ratings are never adjusted automatically. A failed or biased criterion points to the rubric wording or the assessment prompt to revise, followed by a new study.
-
-### Deliberation reports (FR-11)
-
-`POST /api/v1/reports`, or *Deliberation reports* on the category page, generates a PDF from a ranking snapshot (by default, the latest). Admins, coordinators and the committee can generate reports; everyone signed in can read them.
-
-- **Individual report:**
-  - identity, category, rubric version and status, provisional rank and score;
-  - each criterion's rating with its review status, rationale and verified citations;
-  - key strengths (ratings of 4 or more) and limitations;
-  - claim verification counts, unresolved claims and contradictions;
-  - questions for judges;
-  - a provenance appendix: snapshot, models, prompt versions, retrieval settings, and evidence documents with their SHA-256.
-- **Category report** (landscape): the ranking matrix with every criterion rating (* = not reviewed), close results and ties, the criteria with the largest spread, unresolved verification per finalist, questions for judges, finalist summaries and provenance.
-
-Every report carries the committee disclaimer and a confidentiality footer. Reports on a rubric that isn't frozen are marked *PRACTICE ONLY* in text and with an image watermark, which is kept out of the text layer so search, copying and screen readers aren't affected.
-
-Scores, ranks and ratings come from the immutable snapshot. A rating reviewed after the snapshot is pointed out rather than silently mixed in. Strengths, limitations and questions are generated by rules from the reviewed record (`app/services/reports/questions.py`), so they can't invent issues. Each PDF is stored with its SHA-256 and size, and generation and every download are audited. Reports are generated within the request, since they take about a second.
-
-### Judges' pack
-
-*Judges' Pack* in the menu (`GET /api/v1/judges-pack`) gathers each category's top three finalists from its latest ranking, with everyone tied for third included. For each finalist it shows the rank, the score, any AI ratings not yet reviewed, the individual report generated from that ranking, and their documents. Withdrawn documents are left out, and so are files that haven't passed the malware scan. Each category also links its category report. Users who can generate reports get a button that creates any missing reports from the latest ranking. Every signed-in user can open the pack, and blind raters in an open calibration study don't see that category. Downloads go through the usual audited endpoints.
-
-### Authentication (spec §9, §12)
-
-- **Accounts are invitation-only.** An admin creates an account on the *Users* page (or with `make user`), which produces a one-time set-password link valid for 72 hours. *New link* (or `make invite EMAIL=…`) resets a forgotten password: it signs the person out and resets their two-factor setup.
-- **Invitation emails.** When an admin invites someone or issues a new link, the person is emailed a button to set their password. The admin also sees whether the email was sent. If it wasn't, or email isn't set up, the link is shown so it can be shared another way.
-  - Configure it with `EMAIL_BACKEND=smtp` plus the `SMTP_*` and `EMAIL_FROM` settings in `.env.example`.
-  - `EMAIL_BACKEND=console` writes emails to the API log, for local testing.
-  - DigitalOcean blocks SMTP ports 25, 465 and 587, so on a droplet use a provider that accepts port 2525.
-- **Passwords** are hashed with Argon2id and must be at least 12 characters and not based on the email address.
-- **Lockout:** five failed sign-ins lock the account for 15 minutes. Every failure returns the same message, so responses never reveal whether an account exists or is locked.
-- **Two-factor authentication (TOTP)** is available to everyone and required for admin and committee roles (`MFA_REQUIRED_ROLES`). Until it is on, those users can only reach their account page. TOTP secrets are encrypted with a key derived from `SECRET_KEY`.
-- **Browser sessions** use an HttpOnly, SameSite=Strict, Secure cookie, so scripts can't read the token and it isn't sent cross-site. Sessions last 12 hours and end after 60 minutes idle.
-- **API clients** sign in with `"issue_bearer_token": true` and send `Authorization: Bearer …` (30-day tokens).
-- **Tokens** are stored only as SHA-256 hashes. Signing out, changing your password, an admin changing your role, or deactivation ends the relevant sessions immediately.
-- **Audit:** every sign-in, failure, lockout, invitation, two-factor change and account change is recorded in the audit log.
-- **Local development:** set `COOKIE_SECURE=false`, because browsers only send Secure cookies over HTTPS. Production must serve the UI over HTTPS and keep it `true`.
-
-### AI provider
-
-`LLM_PROVIDER` is `disabled` (default), `anthropic` (Claude API, `ANTHROPIC_API_KEY`), or `openrouter`. The `openrouter` option sends the same requests to OpenRouter's Anthropic-compatible endpoint using `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (default `anthropic/claude-opus-5.5`). Any hosted provider also needs `EXTERNAL_AI_PROCESSING_APPROVED=true`.
-
-Through OpenRouter:
-- Requests are pinned to Anthropic as the serving provider, with no fallback to Bedrock, Vertex or Azure, and only to providers that don't collect data.
-- Claude's server-side refusal fallback isn't available, so a refused request fails and can be retried.
-- OpenRouter becomes an additional processor: name it in the finalist notice (part B) before processing real nominations.
-- External research doesn't work through OpenRouter: it rejects Claude's web-fetch results when a paused research turn is sent back. Set `RESEARCH_PROVIDER=anthropic` with an `ANTHROPIC_API_KEY` so research calls Anthropic directly while claims and assessment stay on OpenRouter.
-- Research costs are kept down by default: it runs on `RESEARCH_MODEL` (default `claude-haiku-5-5`) at `RESEARCH_EFFORT=medium`, with at most 10 searches and 10 page fetches per run, 10,000 tokens of text kept per page (`research_max_*` in `app/config.py`), and prompt caching so resumed runs re-read fetched pages at cache rates. Set `RESEARCH_MODEL=claude-opus-5-5` for stronger identity and source judgement at a higher cost.
-
-### AI costs
-
-*AI Costs* in the menu (admins only; `GET /api/v1/admin/ai-costs?days=&category_id=`) estimates what each step of the pipeline has cost, for a period and for all categories or one. The steps are claim extraction, research (Claude's reading and reasoning, web searches and web fetches), assessment, and evidence search and reranking, which runs on the server for free. Costs are calculated from the tokens and searches each job records, at Anthropic's list prices in `app/services/ai_costs.py` (update `PRICES` when prices change). The page charts cost per step, highlights the largest, and lists tokens per step, the prices used and the limits of the estimate. It isn't a bill: OpenRouter, negotiated rates and US-only inference are charged differently. Linking research findings to claims isn't recorded yet.
-
-### Tracing (LangSmith)
-
-Set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` (and optionally `LANGSMITH_PROJECT`, default `wob-awards-2026`, and `LANGSMITH_ENDPOINT` for an EU workspace) to trace what the worker is doing. Each research run, claim extraction and assessment run is one trace. Inside it are the steps (each criterion assessed, retrieval, matching sources to claims) and every Claude call, with timing, model, token use and cost, retries and errors.
-
-**Metadata only.** The consent form and the data protection review don't cover LangSmith, so traces never contain prompts, evidence, AI output or error messages. Inputs are reduced to internal IDs, outputs to token counts (plus searches and pages for research), and errors to their type. This is enforced in `app/services/tracing.py`, whatever LangSmith's own settings say, and `tests/test_tracing.py` checks it. To see a run's content, look it up by its ID in the app.
-
-### Data protection controls (Uganda DPPA 2019)
-
-See [docs/operations/data-protection-review.md](docs/operations/data-protection-review.md) for the full review.
-
-- **Consent records.** The coordinator records each finalist's consent on the finalist page, from the signed notice (Appendix A of the review). There are three parts: A, assessment; B, AI processing by Anthropic in the US; C, public-web research. B and C require A. The records are append-only, so a withdrawal is a new record. The system enforces them:
-  - uploads need part A only if `UPLOAD_REQUIRES_CONSENT=true` (off by default); an explicit withdrawal of part A always stops uploads
-  - claim extraction and AI assessment need part B
-  - research needs part C
-  - the assessment worker skips finalists without part B and lists them under the run's `skipped`
-- **Human ratings.** Reviewers enter ratings for any criterion the AI did not rate. These ratings count in the ranking like approved AI ratings, but are excluded from calibration studies.
-- **Human-only assessment.** When AI is switched off, *Start human-only assessment* on the category page creates a run in which reviewers enter every rating.
-- **Subject-access export** (s.24). On the finalist page, *Export all data (access request)* produces a ZIP of:
-  - the decrypted documents
-  - the finalist's individual reports
-  - `data.json`, covering consents, claims and reviews, public sources, ratings, rankings, calibration ratings, processors, and an access log with other people identified by role only
-
-  The export is available to admin and secretariat, and each export is audited.
-- **Purge** (s.16, s.18). Admins can permanently delete one finalist's data from the finalist page (*Erase all data…*) by giving a reason and typing the finalist's name. The purge deletes, in one transaction:
-  - documents, text and embeddings
-  - claims, sources and ratings
-  - ranking entries, calibration items, consents and reports (category reports too, since they name the finalist)
-
-  Audit events about the finalist keep their action and time, but their details are redacted. Files are deleted after the transaction commits, which destroys their per-file keys (crypto-shredding). The purge is the only path past the database's immutability triggers (`SET LOCAL wob.purge`).
-- **Retention.** Admins set a retention date per category on the category page. Schedule `make purge-expired` to run daily; it purges every category past its date.
-- **Hiding a category.** An admin can use *Hide category* on a category's page, for example for a test category. A hidden category drops out of category lists, the dashboard, rankings, the knowledge base and the judges' pack. Nothing in it changes or is deleted, its own link still works, and admins still see it, greyed out, on *Award Categories* so they can show it again (`PUT /api/v1/categories/{id}/visibility`, audited).
-- **Deleting a category.** To remove a whole category, such as a test category, run `python -m app.cli delete-category CODE` (`make delete-category CODE=…`). On its own it only previews what would go. Add `--yes` (`YES=1`) and it purges every finalist as above, then deletes the category's calibration studies, assessments, rankings, reports, draft rubrics and the category itself, and records `category.deleted` in the audit log. It refuses, before removing anything, if the category has an approved or frozen rubric or a closed calibration study, because the database protects those.
-
-## Database guarantees
-
-The schema enforces these rules from the spec, so a bug in application code can't break them:
-
-| Rule | Mechanism |
-|---|---|
-| Ratings are integers on their rubric version's scale (1–5 or 0–3) | Triggers check AI, reviewer and calibration ratings and ranking scores against the version's scale |
-| No cross-finalist evidence (§5.3, §12) | `finalist_category_id` carried on chunks, claims, citations, with composite FKs |
-| Only confirmed documents are indexed (FR-03) | Trigger blocks chunks until `mapping_confirmed_at` is set |
-| Originals are immutable (§5.1) | Trigger protects file metadata; documents can't be deleted |
-| Frozen rubrics can't change (§7) | Triggers: created as draft; weighted rubrics need every weight before freezing |
-| Incomplete criteria aren't silently omitted (§7.2) | Ranking entries carry `criteria_assessed`/`criteria_total`; score and rank are null unless complete |
-| Audit trail and ranking snapshots are append-only (FR-12) | `forbid_mutation()` triggers |
-
-Deviation from the spec excerpt: `documents.finalist_category_id` is nullable, so imported files can be stored before an administrator confirms which finalist they belong to.
+</div>

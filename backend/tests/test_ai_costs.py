@@ -36,6 +36,7 @@ def test_costs_per_step(client_for, world) -> None:
     steps = {s["key"]: s for s in body["steps"]}
     assert steps["research"]["cost_usd"] == pytest.approx(9000 * 4e-6 + 1200 * 20e-6)
     assert steps["research"]["detail"] == "1 run, 2 pages read"
+    assert steps["web_search"]["detail"] == "4 searches"
     assert steps["web_search"]["cost_usd"] == pytest.approx(0.04)
     assert steps["web_fetch"]["cost_usd"] == 0
     assert steps["claims"]["input_tokens"] > 0  # the test model has no price

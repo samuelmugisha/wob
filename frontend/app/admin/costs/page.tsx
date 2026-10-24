@@ -21,7 +21,7 @@ const HINTS: Record<string, string> = {
 function money(usd: number): string {
   if (usd === 0) return "$0";
   if (usd < 0.0001) return "<$0.0001";
-  if (usd < 1) return `$${usd.toFixed(4)}`;
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
   return `$${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

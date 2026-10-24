@@ -90,7 +90,8 @@ _ASSESSMENT = text(
 
 
 def _plural(n: int, word: str) -> str:
-    return f"{n:,} {word}{'' if n == 1 else 's'}"
+    plural = word + ("es" if word.endswith(("s", "sh", "ch", "x")) else "s")
+    return f"{n:,} {word if n == 1 else plural}"
 
 
 def ai_costs(session: Session, days: int | None, category_id: uuid.UUID | None) -> dict[str, Any]:

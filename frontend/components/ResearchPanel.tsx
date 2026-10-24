@@ -13,6 +13,10 @@ const SOURCE_TYPES: Record<string, string> = {
   other: "Other",
 };
 
+function count(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 function Highlighted({ passage, quote }: { passage: string; quote: string | null }) {
   const needle = (quote ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   const start = needle ? passage.toLowerCase().indexOf(needle) : -1;
@@ -283,8 +287,8 @@ export default function ResearchPanel({ categoryId, finalistId }: { categoryId: 
         <div className="muted small run-summary">
           {active && <span className="spinner" aria-hidden />}
           {run.status === "succeeded" &&
-            `Researched ${formatDate(run.completed_at!)} · ${run.searches} searches · ` +
-              `${run.pages_fetched} pages read · ${run.findings_created} findings`}
+            `Researched ${formatDate(run.completed_at!)} · ${count(run.searches, "search", "searches")} · ` +
+              `${count(run.pages_fetched, "page")} read · ${count(run.findings_created, "finding")}`}
           {run.status === "queued" && "Queued for research…"}
           {run.status === "running" && "Searching public sources…"}
           {run.status === "failed" && <span className="error-text">Research failed: {run.error}</span>}
