@@ -159,6 +159,17 @@ def update_rubric(
     return RubricOut.model_validate(rubric)
 
 
+@router.delete("/rubrics/{rubric_id}", status_code=status.HTTP_204_NO_CONTENT)
+def discard_rubric(rubric_id: uuid.UUID, session: SessionDep, user: Coordinator) -> None:
+    """Discard a draft nobody has used."""
+    rubric = _get_rubric(session, rubric_id)
+    try:
+        rubrics.discard_draft(session, rubric, user)
+    except rubrics.RubricError as exc:
+        raise _http(exc) from exc
+    session.commit()
+
+
 @router.post("/rubrics/{rubric_id}/approve")
 def approve_rubric(rubric_id: uuid.UUID, session: SessionDep, user: RubricApprover) -> RubricOut:
     rubric = _get_rubric(session, rubric_id)

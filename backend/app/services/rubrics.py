@@ -7,13 +7,15 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select, text
+from sqlalchemy import exists, func, select, text
 from sqlalchemy.orm import Session
 
 from app.models import (
     AssessmentRun,
     CalibrationItem,
+    CalibrationStudy,
     CriterionAssessment,
+    RankingSnapshot,
     Role,
     RubricCriterion,
     RubricStatus,
@@ -361,3 +363,38 @@ def working_rubric(session: Session, category_id: uuid.UUID) -> RubricVersion | 
     )
     current = current_rubric(session, category_id)
     return latest if latest and current and latest.id != current.id else None
+
+
+def discard_draft(session: Session, rubric: RubricVersion, user: User) -> None:
+    """Delete a draft nobody has used, e.g. one started from the template by mistake. A draft an
+    assessment run, ranking or calibration study used stays, as their record."""
+    if rubric.status != RubricStatus.DRAFT:
+        raise RubricError(
+            f"only drafts can be discarded; this one is {rubric.status.value}", conflict=True
+        )
+    used = session.scalar(
+        select(
+            exists().where(AssessmentRun.rubric_version_id == rubric.id)
+            | exists().where(RankingSnapshot.rubric_version_id == rubric.id)
+            | exists().where(CalibrationStudy.rubric_version_id == rubric.id)
+        )
+    )
+    if used:
+        raise RubricError(
+            "this draft was used for an assessment run, ranking or calibration study, so it is "
+            "kept; edit it instead",
+            conflict=True,
+        )
+    audit.record(
+        session,
+        user,
+        "rubric.discarded",
+        "rubric_version",
+        rubric.id,
+        version=rubric.version,
+        criteria=[c.code for c in rubric.criteria],
+    )
+    for criterion in list(rubric.criteria):
+        session.delete(criterion)
+    session.flush()
+    session.delete(rubric)

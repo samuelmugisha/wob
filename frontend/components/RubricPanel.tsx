@@ -162,6 +162,8 @@ export default function RubricPanel({
   const canEdit = me?.permissions.manage_evidence ?? false;
   const canApprove = me?.permissions.approve_rubrics ?? false;
   const canAdminister = me?.permissions.administer_rubrics ?? false;
+  // New drafts copy the frozen version in use, else the version shown.
+  const source = inUse?.status === "frozen" ? inUse : rubric?.status === "frozen" ? rubric : (inUse ?? rubric);
 
   function unfreeze(rubricId: string) {
     const reason = window.prompt(
@@ -192,27 +194,28 @@ export default function RubricPanel({
       <div className="toolbar">
         <h2 style={{ margin: 0 }}>Scoring rubric</h2>
         <div className="inline-form" style={{ marginTop: 0 }}>
-          {canEdit && rubric && rubric.status !== "draft" && (
-            <>
-              <button
-                className="secondary"
-                onClick={() => act(() => api.createRubric(categoryId, { copy_from: rubric.id }))}
-                title="A new draft with this version's criteria, weights and weighting, to edit"
-              >
-                New draft from version {rubric.version}
-              </button>
-              <button
-                className="link small"
-                onClick={() =>
-                  act(
-                    () => api.createRubric(categoryId, { use_template: true }),
-                    "Start a new draft from the illustrative template instead of this version's criteria?",
-                  )
-                }
-              >
-                or from the template
-              </button>
-            </>
+          {canEdit && source && rubric?.status !== "draft" && (
+            <button
+              className="secondary"
+              onClick={() => act(() => api.createRubric(categoryId, { copy_from: source.id }))}
+              title="A new draft with this version's criteria, weights and weighting, to edit"
+            >
+              New draft from version {source.version}
+            </button>
+          )}
+          {canEdit && rubric?.status === "draft" && !editing && (
+            <button
+              className="link small"
+              onClick={() =>
+                act(
+                  () => api.deleteRubric(rubric.id),
+                  `Discard draft version ${rubric.version}? Its criteria are deleted.` +
+                    (source ? ` You can then start a new draft from version ${source.version}.` : ""),
+                )
+              }
+            >
+              Discard draft
+            </button>
           )}
           {canEdit && !rubric && (
             <button className="secondary" onClick={() => act(() => api.createRubric(categoryId, { use_template: true }))}>

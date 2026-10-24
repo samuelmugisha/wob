@@ -770,6 +770,7 @@ export const api = {
       scale?: RatingScale;
     },
   ) => request<Rubric>(`/categories/${categoryId}/rubrics`, json("POST", body)),
+  deleteRubric: (rubricId: string) => request<void>(`/rubrics/${rubricId}`, { method: "DELETE" }),
   updateRubric: (
     rubricId: string,
     body: {

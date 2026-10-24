@@ -156,3 +156,31 @@ def test_new_version_starts_from_the_previous_one(client_for, coordinator, world
         f"/api/v1/categories/{other['id']}/rubrics", json={"copy_from": rubric["id"]}
     )
     assert elsewhere.status_code == 404
+
+
+def test_an_unused_draft_can_be_discarded(client_for, coordinator, world, engine) -> None:
+    from tests.test_assessment import _approve_and_freeze
+
+    category_id = world["category"]["id"]
+    frozen_id, _ = _approve_and_freeze(client_for, world)
+    assert coordinator.delete(f"/api/v1/rubrics/{frozen_id}").status_code == 409
+
+    # A draft started by mistake goes; the frozen version stays in use.
+    draft = coordinator.post(
+        f"/api/v1/categories/{category_id}/rubrics", json={"use_template": True}
+    ).json()
+    assert client_for("judge").delete(f"/api/v1/rubrics/{draft['id']}").status_code == 403
+    assert coordinator.delete(f"/api/v1/rubrics/{draft['id']}").status_code == 204
+    state = coordinator.get(f"/api/v1/categories/{category_id}/rankings").json()
+    assert state["rubric"]["id"] == frozen_id and state["working_rubric"] is None
+
+    # A draft an assessment run used is kept as its record.
+    other = test_assessment.make_category(coordinator)
+    used = coordinator.post(
+        f"/api/v1/categories/{other['id']}/rubrics", json={"use_template": True}
+    ).json()
+    test_assessment.make_candidate(coordinator, other["id"], "Jane Doe")
+    run = coordinator.post("/api/v1/assessments", json={"category_id": other["id"]})
+    assert run.status_code == 202, run.text
+    refused = coordinator.delete(f"/api/v1/rubrics/{used['id']}")
+    assert refused.status_code == 409 and "kept" in refused.json()["detail"]
