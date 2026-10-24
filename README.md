@@ -102,6 +102,17 @@ Back the keys up separately from the data: losing them makes every stored file u
 
 Set `EMBEDDING_DIM` to match the chosen embedding model **before** the first migration. Changing it later requires a new migration and re-embedding all chunks.
 
+### Importing nomination forms
+
+`python -m app.cli import-form-evidence FILE --as EMAIL` takes a Google Forms export (`.xlsx`, one sheet per award category; `-` reads it from standard input) and attaches each response, as a supporting document, to the finalist of the same name in that category. Matching ignores case, accents, punctuation and titles such as Dr or Mrs. Sheet titles cut short at 31 characters still match their category.
+
+- **What goes in the document:** the nominee's organisation and title, every written answer under its question, and each referee's name and organisation. Emails, phone numbers, date of birth and the declaration are left out, because the documents go to the AI and to research. Uploaded-file answers are Google Drive links the server can't open, so they're listed for a coordinator to fetch and upload.
+- **What it skips:** responses that match no finalist, nominees who withdrew consent to assessment (or haven't given it when uploads require consent), and nominees already imported.
+- **Profile details:** where the system has no organisation or title for a nominee, the form's are used.
+- **Afterwards:** claim extraction is queued for each nominee who got a document. The worker indexes the documents first, so under the jury decision the claims they support are verified.
+- **Preview first:** without `--yes` it only shows what it would do. Only admin and coordinator accounts can run it, and each import is audited as `nomination_form.imported`.
+- **Running it on the server** without leaving a copy there: `ssh … 'cd /opt/wob/infrastructure/deployment && docker compose --env-file /etc/wob/env exec -T api python -m app.cli import-form-evidence - --as EMAIL' < WOB_Evidence.xlsx`. Keep these exports in `docs/attachments/`, which git ignores.
+
 ### Hybrid retrieval
 
 `GET /api/v1/categories/{category}/finalists/{finalist}/search?q=…` (or `?criterion_id=…`) returns the passages an assessor sees for a question or rubric criterion (spec §5.3, FR-05). The same search is in the UI under *Search this candidate's evidence*.

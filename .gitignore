@@ -10,3 +10,6 @@ node_modules/
 backend/var/
 frontend/next-env.d.ts
 *.tsbuildinfo
+
+# Nomination data (personal data): import it, never commit it.
+docs/attachments/

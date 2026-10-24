@@ -6,6 +6,7 @@ python -m app.cli auto-accept-research                    # auto-accept earlier 
 python -m app.cli match-research-claims                   # link them to the claims they support
 python -m app.cli delete-category CODE [--yes]            # preview, or delete, a whole category
 python -m app.cli verify-supporting-claims                # apply the jury decision on documents
+python -m app.cli import-form-evidence FILE --as EMAIL [--yes]  # nomination forms as evidence
 """
 
 import argparse
@@ -251,6 +252,72 @@ def verify_supporting_claims() -> None:
     print(f"Verified {verified} claim(s) supported by a supporting document.")
 
 
+def import_form_evidence(path: str, actor_email: str, confirmed: bool, extract: bool) -> None:
+    """Attach nomination-form responses (an .xlsx export, one sheet per category; '-' reads it
+    from standard input) to the matching finalists as supporting documents. Without --yes it
+    only shows what would happen."""
+    from app.models import ClaimExtractionRun, JobStatus, Role
+    from app.services import form_import
+    from app.services.claims.llm import provider_status
+    from app.workers.claims import new_run
+
+    data = sys.stdin.buffer.read() if path == "-" else open(path, "rb").read()  # noqa: SIM115
+    settings = get_settings()
+    with Session(get_engine()) as session:
+        actor = _find(session, actor_email)
+        if actor is None or actor.role not in (Role.ADMIN, Role.SECRETARIAT):
+            sys.exit(f"{actor_email} is not an administrator or coordinator account.")
+        plan = form_import.plan_import(session, form_import.read_workbook(data), settings)
+        for item in plan.imports:
+            state = (
+                f"skipped: {item.blocked}"
+                if item.blocked
+                else "already imported"
+                if item.already_imported
+                else f"import {len(item.response.answers)} answers"
+            )
+            print(
+                f"  {item.category.name} | {item.response.full_name} -> "
+                f"{item.finalist.full_name}: {state}"
+            )
+        for response in plan.unmatched:
+            print(f"  {response.sheet} | {response.full_name}: no matching finalist, skipped")
+        if plan.sheets_without_category:
+            print(f"Sheets with no matching category: {', '.join(plan.sheets_without_category)}")
+        if plan.empty_sheets:
+            print(f"Empty sheets: {', '.join(plan.empty_sheets)}")
+        to_import = [i for i in plan.imports if not i.already_imported and not i.blocked]
+        if not confirmed:
+            print(
+                f"Nothing changed. {len(to_import)} to import, {len(plan.unmatched)} unmatched. "
+                "Run again with --yes to import."
+            )
+            return
+        done = form_import.apply_import(
+            session, storage.build_storage(settings), settings, plan, actor
+        )
+        session.commit()
+        queued = 0
+        if extract and done and provider_status(settings)["enabled"]:
+            for fc_id in form_import.finalist_category_ids(done):
+                running = session.scalar(
+                    select(func.count())
+                    .select_from(ClaimExtractionRun)
+                    .where(
+                        ClaimExtractionRun.finalist_category_id == fc_id,
+                        ClaimExtractionRun.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+                    )
+                )
+                if not running:
+                    new_run(session, fc_id, settings.llm_model, actor.id)
+                    queued += 1
+            session.commit()
+    print(
+        f"Imported {len(done)} document(s); claim extraction queued for {queued} nominee(s). "
+        "The worker indexes the documents before extracting claims."
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -262,6 +329,13 @@ def main() -> None:
     reinvite.add_argument("email")
     keygen = commands.add_parser("generate-file-key")
     keygen.add_argument("key_id", nargs="?", default=None)
+    form = commands.add_parser("import-form-evidence")
+    form.add_argument("path", help="the .xlsx export, or - to read it from standard input")
+    form.add_argument("--as", dest="actor", required=True, help="your admin account's email")
+    form.add_argument("--yes", action="store_true", help="import; without it, only preview")
+    form.add_argument(
+        "--no-extract", action="store_true", help="don't queue claim extraction afterwards"
+    )
     remove = commands.add_parser("delete-category")
     remove.add_argument("code")
     remove.add_argument("--yes", action="store_true", help="delete; without it, only preview")
@@ -294,6 +368,8 @@ def main() -> None:
         match_research_claims()
     elif args.command == "verify-supporting-claims":
         verify_supporting_claims()
+    elif args.command == "import-form-evidence":
+        import_form_evidence(args.path, args.actor, args.yes, not args.no_extract)
     elif args.command == "delete-category":
         delete_category(args.code, args.yes)
     else:
