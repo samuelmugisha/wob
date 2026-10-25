@@ -21,6 +21,8 @@ class Permission(enum.StrEnum):
     MANAGE_CALIBRATION = "manage_calibration"
     RATE_CALIBRATION = "rate_calibration"
     EXPORT_PERSONAL_DATA = "export_personal_data"
+    SCORE_CANDIDATES = "score_candidates"
+    VIEW_JUDGE_SCORES = "view_judge_scores"
 
 
 # Shown on the administrator's Roles & rights page.
@@ -54,7 +56,20 @@ DESCRIPTIONS: dict[Permission, tuple[str, str]] = {
         "Export a finalist's data",
         "Download everything held about a finalist (subject access request).",
     ),
+    Permission.SCORE_CANDIDATES: (
+        "Score candidates",
+        "Give each finalist in the judges' pack a score from 0 to 3 with a comment. Each "
+        "person sees only their own scores.",
+    ),
+    Permission.VIEW_JUDGE_SCORES: (
+        "See the judges' tally",
+        "See every judge's scores and comments, the averages and the winner, and close "
+        "scoring. Never granted to judges, who score independently.",
+    ),
 }
+
+# Rights a group can never hold (also enforced by the database).
+NEVER: dict[Permission, tuple[Role, ...]] = {Permission.VIEW_JUDGE_SCORES: (Role.JUDGE,)}
 
 # The groups whose rights an administrator can change.
 GROUPS = (Role.SECRETARIAT, Role.REVIEWER, Role.JUDGE, Role.COMMITTEE)

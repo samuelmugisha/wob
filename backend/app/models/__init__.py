@@ -123,6 +123,8 @@ class AwardCategory(Base):
     retention_until: Mapped[date | None] = mapped_column(Date)
     hidden_at: Mapped[datetime | None] = mapped_column(Timestamp)
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+    judging_closed_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    judging_closed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
 
 class RubricStatus(enum.StrEnum):
@@ -726,6 +728,20 @@ class AuditEvent(Base):
     entity_type: Mapped[str]
     entity_id: Mapped[uuid.UUID | None]
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class JudgeScore(Base):
+    """One judge's own score (0-3) and comment for a finalist, given independently."""
+
+    __tablename__ = "judge_scores"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    finalist_category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("finalist_categories.id"))
+    judge_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    score: Mapped[int]
+    comment: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
 
 
 class ReferenceNote(Base):

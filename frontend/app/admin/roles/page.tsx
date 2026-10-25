@@ -99,6 +99,11 @@ export default function RolesPage() {
                   </td>
                   {data.groups.map((g) => (
                     <td key={g.role} className="num">
+                      {p.never_for.includes(g.role) ? (
+                        <span className="muted small" title={`${ROLE_LABELS[g.role]}s can never hold this right`}>
+                          Never
+                        </span>
+                      ) : (
                       <input
                         type="checkbox"
                         checked={granted[g.role]?.includes(p.key) ?? false}
@@ -106,6 +111,7 @@ export default function RolesPage() {
                         onChange={() => toggle(g.role, p.key)}
                         aria-label={`${ROLE_LABELS[g.role]}: ${p.label}`}
                       />
+                      )}
                     </td>
                   ))}
                 </tr>

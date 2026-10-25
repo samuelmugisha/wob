@@ -535,3 +535,11 @@ td > .badge:first-child { margin-left: 0; }
 .reference-form .field { flex: none; }
 .reference-form .criterion-row .link { align-self: flex-start; }
 .reference-form textarea { width: 100%; resize: vertical; }
+.judge-score { display: grid; gap: 8px; }
+.judge-score textarea { width: 100%; }
+
+/* Judges' scores tally */
+.tally-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.tally-winner { font-size: 18px; font-weight: 600; }
+.tally-comments { margin: 6px 0 0; padding-left: 18px; }
+.tally-comments li + li { margin-top: 4px; }

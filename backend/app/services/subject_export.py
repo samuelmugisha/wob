@@ -27,6 +27,7 @@ from app.models import (
     Finalist,
     FinalistCategory,
     FinalistConsent,
+    JudgeScore,
     RankingEntry,
     RankingSnapshot,
     ReferenceNote,
@@ -249,6 +250,20 @@ def build_export(
                 select(ReferenceNote)
                 .where(ReferenceNote.finalist_category_id == fc.id)
                 .order_by(ReferenceNote.position)
+            )
+        ],
+        # Judges are identified by role only, like other people in this export.
+        "judge_scores": [
+            {
+                "by_role": "judge",
+                "score": s.score,
+                "comment": s.comment,
+                "recorded_at": _iso(s.updated_at),
+            }
+            for s in session.scalars(
+                select(JudgeScore)
+                .where(JudgeScore.finalist_category_id == fc.id)
+                .order_by(JudgeScore.created_at)
             )
         ],
         "documents": [

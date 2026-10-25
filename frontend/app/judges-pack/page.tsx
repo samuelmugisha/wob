@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { IconDocument, IconDownload } from "@/components/Icons";
-import { api, formatBytes, formatDate, type JudgesPackCategory, type Me } from "@/lib/api";
+import JudgeScoreForm from "@/components/JudgeScoreForm";
+import { api, formatBytes, formatDate, type JudgeScore, type JudgesPackCategory, type Me } from "@/lib/api";
 
 const ORDINAL = ["", "1st", "2nd", "3rd"];
 
 /** Each category's top three finalists from its latest ranking, with their reports and documents,
- * for judges to work through in one place. */
+ * for judges to work through in one place and score. */
 export default function JudgesPackPage() {
   const [pack, setPack] = useState<JudgesPackCategory[] | null>(null);
   const [me, setMe] = useState<Me | null>(null);
@@ -23,6 +24,17 @@ export default function JudgesPackPage() {
     api.me().then(setMe, () => setMe(null));
   }, []);
   const canGenerate = me?.permissions.generate_reports ?? false;
+  const canScore = me?.permissions.score_candidates ?? false;
+
+  function scored(categoryId: string, finalistId: string, score: JudgeScore) {
+    setPack((all) =>
+      all?.map((c) =>
+        c.id !== categoryId
+          ? c
+          : { ...c, finalists: c.finalists.map((f) => (f.finalist_id === finalistId ? { ...f, my_score: score } : f)) },
+      ) ?? null,
+    );
+  }
 
   /** Generate the reports this category's pack is missing, from its latest ranking. */
   async function generateMissing(category: JudgesPackCategory) {
@@ -51,6 +63,13 @@ export default function JudgesPackPage() {
           <p className="muted" style={{ margin: 0 }}>
             The top three finalists in each category&apos;s latest ranking, with their reports and documents.
             Rankings are provisional and advisory: the committee decides. Confidential to the judging panel.
+            {canScore && (
+              <>
+                {" "}
+                Score each finalist from 0 to 3 with your comments. Your scores are seen only by the awards
+                team, never by the other judges.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -67,6 +86,7 @@ export default function JudgesPackPage() {
       )}
       {pack?.map((category) => {
         const missing = (category.category_report ? 0 : 1) + category.finalists.filter((f) => !f.report).length;
+        const mine = category.finalists.filter((f) => f.my_score).length;
         return (
           <section key={category.id} id={category.code} className="card">
             <div className="card-head">
@@ -77,6 +97,16 @@ export default function JudgesPackPage() {
                     {category.production ? "Production ranking" : "Practice ranking"}
                   </span>{" "}
                   Ranked {formatDate(category.ranked_at!)}
+                  {canScore && category.finalists.length > 0 && (
+                    <>
+                      {" "}
+                      <span className={`badge${mine === category.finalists.length ? " success" : ""}`}>
+                        {category.judging_closed
+                          ? "Scoring closed"
+                          : `You've scored ${mine} of ${category.finalists.length}`}
+                      </span>
+                    </>
+                  )}
                 </span>
               )}
             </div>
@@ -126,6 +156,19 @@ export default function JudgesPackPage() {
                             {f.unreviewed_criteria.length} AI rating{f.unreviewed_criteria.length === 1 ? "" : "s"} not yet reviewed
                           </span>
                         </div>
+                      )}
+                      {canScore && (
+                        <>
+                          <h4>Your score</h4>
+                          <JudgeScoreForm
+                            categoryId={category.id}
+                            finalistId={f.finalist_id}
+                            name={f.full_name}
+                            saved={f.my_score}
+                            closed={category.judging_closed}
+                            onSaved={(score) => scored(category.id, f.finalist_id, score)}
+                          />
+                        </>
                       )}
                       <h4>Report</h4>
                       {f.report ? (

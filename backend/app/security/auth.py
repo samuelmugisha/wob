@@ -86,4 +86,6 @@ RubricApprover = Annotated[User, Depends(require_permission(Permission.APPROVE_R
 ReportAuthor = Annotated[User, Depends(require_permission(Permission.GENERATE_REPORTS))]
 StudyManager = Annotated[User, Depends(require_permission(Permission.MANAGE_CALIBRATION))]
 Exporter = Annotated[User, Depends(require_permission(Permission.EXPORT_PERSONAL_DATA))]
+JudgeUser = Annotated[User, Depends(require_permission(Permission.SCORE_CANDIDATES))]
+ScoreViewer = Annotated[User, Depends(require_permission(Permission.VIEW_JUDGE_SCORES))]
 Admin = Annotated[User, Depends(require_roles(Role.ADMIN))]

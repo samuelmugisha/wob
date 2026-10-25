@@ -15,6 +15,7 @@ from app.api import (
     data_protection,
     health,
     judges_pack,
+    judging,
     knowledge_base,
     reports,
     research,
@@ -63,3 +64,4 @@ app.include_router(judges_pack.router)
 app.include_router(calibration.router)
 app.include_router(data_protection.router)
 app.include_router(dashboard.router)
+app.include_router(judging.router)

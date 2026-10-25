@@ -356,7 +356,12 @@ def list_role_permissions(session: SessionDep, _: Admin) -> dict:
     """The rights an administrator can grant, and which user groups hold each."""
     return {
         "permissions": [
-            {"key": p.value, "label": label, "description": description}
+            {
+                "key": p.value,
+                "label": label,
+                "description": description,
+                "never_for": [r.value for r in permissions.NEVER.get(p, ())],
+            }
             for p, (label, description) in permissions.DESCRIPTIONS.items()
         ],
         "groups": [
@@ -378,6 +383,13 @@ def update_role_permissions(
     if role not in permissions.GROUPS:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "administrators always hold every right"
+        )
+    barred = [p for p in body.permissions if role in permissions.NEVER.get(p, ())]
+    if barred:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"{email.ROLE_NAMES[role]}s can't be given: "
+            + ", ".join(permissions.DESCRIPTIONS[p][0] for p in barred),
         )
     before = sorted(permissions.granted(session, role))
     after = sorted(set(body.permissions))

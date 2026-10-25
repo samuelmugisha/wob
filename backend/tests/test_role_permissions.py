@@ -13,10 +13,17 @@ DEFAULTS = {
         "manage_calibration",
         "manage_evidence",
         "review_claims",
+        "view_judge_scores",
     ],
     "reviewer": ["rate_calibration", "review_claims"],
-    "judge": ["rate_calibration"],
-    "committee": ["approve_rubrics", "generate_reports", "manage_calibration", "rate_calibration"],
+    "judge": ["rate_calibration", "score_candidates"],
+    "committee": [
+        "approve_rubrics",
+        "generate_reports",
+        "manage_calibration",
+        "rate_calibration",
+        "view_judge_scores",
+    ],
 }
 
 
@@ -37,7 +44,7 @@ def _restore_defaults(engine: Engine) -> Iterator[None]:
 def test_defaults_keep_the_rights_each_group_had(client_for) -> None:
     body = client_for("admin").get(URL).json()
     assert {g["role"]: g["permissions"] for g in body["groups"]} == DEFAULTS
-    assert len(body["permissions"]) == 7 and all(p["label"] for p in body["permissions"])
+    assert len(body["permissions"]) == 9 and all(p["label"] for p in body["permissions"])
 
 
 def test_only_an_admin_sees_or_changes_rights(client_for) -> None:
@@ -82,6 +89,7 @@ def test_granting_and_removing_rights_takes_effect_at_once(client_for, engine) -
         "export_personal_data",
         "manage_calibration",
         "manage_evidence",
+        "view_judge_scores",
     }
 
 

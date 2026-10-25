@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   IconBook,
+  IconCheck,
   IconChevron,
   IconClipboard,
   IconDashboard,
@@ -43,6 +44,7 @@ const NAV: NavItem[] = [
     match: (p) => p === "/categories" || (p.startsWith("/categories/") && !p.includes("/finalists/")),
   },
   { href: "/judges-pack", label: "Judges' Pack", icon: IconClipboard, match: (p) => p.startsWith("/judges-pack") },
+  { href: "/judges-scores", label: "Judges' Scores", icon: IconCheck, match: (p) => p.startsWith("/judges-scores"), show: (me) => me.permissions.view_judge_scores },
   { href: "/reports", label: "Reports", icon: IconDocument, match: (p) => p.startsWith("/reports") },
   { href: "/admin/users", label: "Users", icon: IconPeople, match: (p) => p.startsWith("/admin/users"), show: (me) => me.permissions.manage_users },
   { href: "/admin/roles", label: "Roles & Rights", icon: IconShield, match: (p) => p.startsWith("/admin/roles"), show: (me) => me.permissions.manage_users },

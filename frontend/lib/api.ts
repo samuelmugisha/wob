@@ -171,6 +171,8 @@ export type Me = {
     manage_calibration: boolean;
     rate_calibration: boolean;
     export_personal_data: boolean;
+    score_candidates: boolean;
+    view_judge_scores: boolean;
     manage_users: boolean;
   };
 };
@@ -299,6 +301,40 @@ export type JudgesPackFinalist = {
   unreviewed_criteria: string[];
   report: JudgesPackReport | null;
   documents: { id: string; filename: string; mime_type: string; size_bytes: number; source_type: SourceType }[];
+  /** The signed-in judge's own score; other judges' scores are never in the pack. */
+  my_score: JudgeScore | null;
+};
+
+export type JudgeScore = { score: number; comment: string; updated_at: string };
+
+/** What each judge's 0–3 score means. */
+export const JUDGE_SCORE_LABELS = ["None", "Poor", "Good", "Excellent"];
+
+export type TallyCandidate = {
+  finalist_id: string;
+  full_name: string;
+  organisation: string | null;
+  rank: number;
+  is_tie: boolean;
+  judges_scored: number;
+  total: number;
+  average: string;
+  scores: { judge_id: string; judge_name: string; score: number; comment: string; updated_at: string }[];
+};
+
+export type JudgeTally = {
+  id: string;
+  code: string;
+  name: string;
+  expected_judges: number;
+  max_score: number;
+  judges: { id: string; name: string }[];
+  complete: boolean;
+  status: "winner" | "provisional" | "tie" | "no_scores";
+  leaders: string[];
+  closed_at: string | null;
+  closed_by: string | null;
+  candidates: TallyCandidate[];
 };
 
 export type JudgesPackCategory = {
@@ -311,6 +347,7 @@ export type JudgesPackCategory = {
   hidden_for_calibration: boolean;
   scale_high: number;
   category_report: JudgesPackReport | null;
+  judging_closed: boolean;
   finalists: JudgesPackFinalist[];
 };
 
@@ -603,7 +640,13 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 /** A right an administrator grants to user groups (backend app/security/permissions.py). */
-export type GroupPermission = { key: string; label: string; description: string };
+export type GroupPermission = {
+  key: string;
+  label: string;
+  description: string;
+  /** Groups that can never hold this right. */
+  never_for: Role[];
+};
 
 export type RolePermissions = {
   permissions: GroupPermission[];
@@ -849,6 +892,16 @@ export const api = {
       json("PUT", { notes }),
     ),
   judgesPack: () => request<JudgesPackCategory[]>("/judges-pack"),
+  saveJudgeScore: (categoryId: string, finalistId: string, score: number, comment: string) =>
+    request<JudgeScore>(
+      `/categories/${categoryId}/finalists/${finalistId}/judge-score`,
+      json("PUT", { score, comment }),
+    ),
+  judgeTally: () => request<JudgeTally[]>("/judge-scores"),
+  closeJudging: (categoryId: string) =>
+    request<JudgeTally>(`/categories/${categoryId}/judge-scores/close`, { method: "POST" }),
+  reopenJudging: (categoryId: string, reason: string) =>
+    request<JudgeTally>(`/categories/${categoryId}/judge-scores/reopen`, json("POST", { reason })),
   listStudies: (categoryId: string) => request<StudySummary[]>(`/categories/${categoryId}/calibration-studies`),
   eligibleRaters: () => request<{ id: string; display_name: string; role: string }[]>("/calibration/eligible-raters"),
   createStudy: (categoryId: string, name: string, raterIds: string[]) =>
