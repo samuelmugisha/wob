@@ -699,12 +699,16 @@ export class ApiError extends Error {
 
 const PUBLIC_PAGES = ["/login", "/accept-invite"];
 
+/** Tabs tell each other about sign-out on this channel (components/AppShell.tsx). */
+export const SESSION_CHANNEL = "wob-session";
+
 /** Send the browser to sign in (or to two-factor setup) when the API says so. */
 function handleAuthFailure(status: number, detail: string): void {
   if (typeof window === "undefined") return;
   const here = window.location.pathname + window.location.search;
   if (status === 401 && !PUBLIC_PAGES.includes(window.location.pathname)) {
-    window.location.assign(`/login?next=${encodeURIComponent(here)}`);
+    // Replace, so Back from the sign-in page doesn't return to a page that needs a session.
+    window.location.replace(`/login?next=${encodeURIComponent(here)}`);
   } else if (status === 403 && detail.startsWith("mfa_setup_required") && window.location.pathname !== "/account") {
     window.location.assign("/account?setup=mfa");
   }

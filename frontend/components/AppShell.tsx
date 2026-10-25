@@ -20,7 +20,7 @@ import {
   IconSparkle,
 } from "@/components/Icons";
 import Logo from "@/components/Logo";
-import { api, initials, type Me, ROLE_LABELS } from "@/lib/api";
+import { api, ApiError, initials, type Me, ROLE_LABELS, SESSION_CHANNEL } from "@/lib/api";
 
 const PUBLIC = ["/login", "/accept-invite"];
 
@@ -80,8 +80,14 @@ function UserMenu({ me }: { me: Me }) {
   }, [open]);
 
   async function signOut() {
-    await api.logout();
-    window.location.assign("/login");
+    try {
+      await api.logout();
+    } finally {
+      // Sign out every other open tab too, and replace this page in the history so Back
+      // doesn't return to it.
+      new BroadcastChannel(SESSION_CHANNEL).postMessage("signed-out");
+      window.location.replace("/login");
+    }
   }
 
   const role = ROLE_LABELS[me.role as keyof typeof ROLE_LABELS] ?? me.role;
@@ -120,22 +126,66 @@ function UserMenu({ me }: { me: Me }) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublic = PUBLIC.includes(pathname);
+  // Nothing behind sign-in is shown until the server confirms the session.
   const [me, setMe] = useState<Me | null>(null);
+  const [unreachable, setUnreachable] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     if (isPublic) return setMe(null);
-    api.me().then(setMe, () => setMe(null));
+    const verify = () =>
+      api.me().then(
+        (user) => {
+          setUnreachable(false);
+          setMe(user);
+        },
+        // A 401 sends the browser to sign in (lib/api.ts); anything else, say so.
+        (e) => !(e instanceof ApiError && e.status === 401) && setUnreachable(true),
+      );
+    verify();
+    // Back and Forward can restore a page from the browser's memory: hide it and check the
+    // session again, so a signed-out session never shows a page.
+    const restored = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      setMe(null);
+      verify();
+    };
+    // Coming back to the tab after the session expired or was ended elsewhere.
+    const visible = () => document.visibilityState === "visible" && verify();
+    const channel = new BroadcastChannel(SESSION_CHANNEL);
+    channel.onmessage = (e) => {
+      if (e.data !== "signed-out") return;
+      setMe(null);
+      window.location.replace("/login");
+    };
+    window.addEventListener("pageshow", restored);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      window.removeEventListener("pageshow", restored);
+      document.removeEventListener("visibilitychange", visible);
+      channel.close();
+    };
   }, [isPublic]);
   useEffect(() => setNavOpen(false), [pathname]);
 
-  if (isPublic) {
+  if (isPublic || !me) {
     return (
       <div className="public-shell">
         <div className="public-brand">
           <Logo />
         </div>
-        <main className="public-main">{children}</main>
+        <main className="public-main">
+          {isPublic ? (
+            children
+          ) : unreachable ? (
+            <div className="card auth-card">
+              <p>The server can&apos;t be reached right now.</p>
+              <button onClick={() => window.location.reload()}>Try again</button>
+            </div>
+          ) : (
+            <p className="muted">Checking your session…</p>
+          )}
+        </main>
       </div>
     );
   }
@@ -178,7 +228,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Profile className="banner-profile p2" />
             <Profile className="banner-profile p3" />
           </div>
-          {me && <UserMenu me={me} />}
+          <UserMenu me={me} />
         </header>
         <main className="content">{children}</main>
         <footer className="site-footer">

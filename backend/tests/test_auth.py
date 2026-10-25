@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.main import app
 from app.models import Role, User
 from app.security import accounts
+from app.security.auth import SESSION_COOKIE
 from tests.conftest import FILE_KEYS
 
 STRONG = "correct-horse-battery-staple"
@@ -137,8 +138,12 @@ def test_login_failures_are_uniform_and_lock_the_account(client, engine, setting
 
 def test_logout_revokes_the_session(engine, settings) -> None:
     client, _ = signed_in(engine, settings)
+    old_cookie = client.cookies.get(SESSION_COOKIE)
     assert client.post("/api/v1/auth/logout").status_code == 204
     assert client.get("/api/v1/me").status_code == 401
+    # The old cookie, as a page kept from before signing out would send it, is refused too.
+    replay = TestClient(app, cookies={SESSION_COOKIE: old_cookie})
+    assert replay.get("/api/v1/me").status_code == 401
 
 
 def test_bearer_tokens_for_api_clients(engine, settings) -> None:
