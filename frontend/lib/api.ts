@@ -168,6 +168,9 @@ export type Me = {
     approve_rubrics: boolean;
     administer_rubrics: boolean;
     generate_reports: boolean;
+    manage_calibration: boolean;
+    rate_calibration: boolean;
+    export_personal_data: boolean;
     manage_users: boolean;
   };
 };
@@ -599,6 +602,15 @@ export const ROLE_LABELS: Record<Role, string> = {
   committee: "Committee member",
 };
 
+/** A right an administrator grants to user groups (backend app/security/permissions.py). */
+export type GroupPermission = { key: string; label: string; description: string };
+
+export type RolePermissions = {
+  permissions: GroupPermission[];
+  /** Every group except administrators, who always hold every right. */
+  groups: { role: Role; permissions: string[] }[];
+};
+
 export type UserAccount = {
   id: string;
   email: string;
@@ -745,6 +757,9 @@ export const api = {
     ),
   updateUser: (id: string, changes: { role?: Role; is_active?: boolean; display_name?: string }) =>
     request<UserAccount>(`/users/${id}`, json("PATCH", changes)),
+  rolePermissions: () => request<RolePermissions>("/role-permissions"),
+  setRolePermissions: (role: Role, permissions: string[]) =>
+    request<{ role: Role; permissions: string[] }>(`/role-permissions/${role}`, json("PUT", { permissions })),
   reissueInvite: (id: string) =>
     request<Invitation>(`/users/${id}/invite`, {
       method: "POST",

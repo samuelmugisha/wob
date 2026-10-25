@@ -273,7 +273,8 @@ def import_form_evidence(
     """Attach nomination-form responses (an .xlsx export, one sheet per category; '-' reads it
     from standard input) to the matching finalists as supporting documents. Without --yes it
     only shows what would happen."""
-    from app.models import ClaimExtractionRun, JobStatus, Role
+    from app.models import ClaimExtractionRun, JobStatus
+    from app.security.permissions import Permission, has
     from app.services import form_import
     from app.services.claims.llm import provider_status
     from app.workers.claims import new_run
@@ -282,8 +283,8 @@ def import_form_evidence(
     settings = get_settings()
     with Session(get_engine()) as session:
         actor = _find(session, actor_email)
-        if actor is None or actor.role not in (Role.ADMIN, Role.SECRETARIAT):
-            sys.exit(f"{actor_email} is not an administrator or coordinator account.")
+        if actor is None or not has(session, actor, Permission.MANAGE_EVIDENCE):
+            sys.exit(f"{actor_email} is not allowed to manage finalists and evidence.")
         try:
             plan = form_import.plan_import(
                 session,

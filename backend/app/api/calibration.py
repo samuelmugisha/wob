@@ -1,9 +1,8 @@
 """Calibration studies (FR-15): blind benchmark ratings by committee raters vs AI ratings."""
 
 import uuid
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -16,18 +15,17 @@ from app.models import (
     CalibrationStudy,
     Finalist,
     FinalistCategory,
-    Role,
     RubricCriterion,
     RubricVersion,
     User,
 )
-from app.security.auth import CurrentUser, require_roles
+from app.security.auth import CurrentUser, StudyManager
+from app.security.permissions import Permission, roles_with
 from app.services import calibration
 from app.services.calibration import CalibrationError
 from app.services.scales import levels_out
 
 router = APIRouter(prefix="/api/v1", tags=["calibration"])
-StudyManager = Annotated[User, Depends(require_roles(Role.ADMIN, Role.SECRETARIAT, Role.COMMITTEE))]
 
 
 def _http(exc: CalibrationError) -> HTTPException:
@@ -128,7 +126,10 @@ def create_study(body: StudyIn, session: SessionDep, user: StudyManager) -> dict
 def eligible_raters(session: SessionDep, _: StudyManager) -> list[dict]:
     users = session.scalars(
         select(User)
-        .where(User.is_active, User.role.in_(calibration.RATER_ROLES))
+        .where(
+            User.is_active,
+            User.role.in_(roles_with(session, Permission.RATE_CALIBRATION)),
+        )
         .order_by(User.display_name)
     )
     return [{"id": str(u.id), "display_name": u.display_name, "role": u.role.value} for u in users]

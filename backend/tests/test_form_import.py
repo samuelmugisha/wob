@@ -143,7 +143,7 @@ def test_import_attaches_answers_without_contact_details(
 
 def test_only_coordinators_can_import(client_for, setup) -> None:
     judge = client_for("judge").headers[TEST_USER_HEADER]
-    with pytest.raises(SystemExit, match="not an administrator or coordinator"):
+    with pytest.raises(SystemExit, match="not allowed to manage finalists and evidence"):
         cli.import_form_evidence(setup["path"], judge, confirmed=True, extract=False)
 
 

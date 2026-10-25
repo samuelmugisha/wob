@@ -178,7 +178,7 @@ export default function CalibrationPanel({ categoryId, me, hasRun }: { categoryI
   const [studies, setStudies] = useState<StudySummary[] | null>(null);
   const [shown, setShown] = useState<{ id: string; final: boolean; results: CalibrationResults } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const canManage = me ? ["admin", "secretariat", "committee"].includes(me.role) : false;
+  const canManage = me?.permissions.manage_calibration ?? false;
 
   const load = useCallback(() => {
     api.listStudies(categoryId).then(setStudies, (e: Error) => setError(e.message));

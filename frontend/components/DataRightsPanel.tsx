@@ -19,7 +19,7 @@ export default function DataRightsPanel({
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const canExport = me ? ["admin", "secretariat"].includes(me.role) : false;
+  const canExport = me?.permissions.export_personal_data ?? false;
   const canPurge = me?.role === "admin";
   if (!canExport && !canPurge) return null;
 

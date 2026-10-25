@@ -22,7 +22,6 @@ from app.models import (
     FinalistCategory,
     JobStatus,
     RankingSnapshot,
-    Role,
     RubricCriterion,
     RubricStatus,
     RubricVersion,
@@ -46,7 +45,7 @@ from app.schemas.assessment import (
     RubricOut,
     UnfreezeIn,
 )
-from app.security.auth import Admin, Coordinator, CurrentUser, require_roles
+from app.security.auth import Admin, Coordinator, CurrentUser, RubricApprover
 from app.services import audit, rubrics
 from app.services.assessment.review import AssessmentReviewRejected, review_assessment
 from app.services.calibration import is_blinded, latest_result
@@ -60,7 +59,6 @@ BLINDED = (
     "submit your ratings first"
 )
 SettingsDep = Annotated[Settings, Depends(get_settings)]
-RubricApprover = Annotated[User, Depends(require_roles(Role.ADMIN, Role.COMMITTEE))]
 
 DISCLAIMER = (
     "AI rankings are advisory. The awards committee retains responsibility for final "

@@ -20,10 +20,8 @@ from app.models import (
     RankingSnapshot,
     Report,
     ReportKind,
-    Role,
-    User,
 )
-from app.security.auth import CurrentUser, require_roles
+from app.security.auth import CurrentUser, ReportAuthor
 from app.services import audit
 from app.services.calibration import is_blinded
 from app.services.http import attachment
@@ -33,7 +31,6 @@ from app.services.storage import LocalStorage, get_storage
 
 router = APIRouter(prefix="/api/v1", tags=["reports"])
 log = logging.getLogger("wob.reports")
-ReportAuthor = Annotated[User, Depends(require_roles(Role.ADMIN, Role.SECRETARIAT, Role.COMMITTEE))]
 
 
 class ReportIn(BaseModel):

@@ -12,8 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.knowledge_base import SessionDep, _get_category, _get_finalist_category
-from app.models import FinalistConsent, Role, User
-from app.security.auth import Admin, Coordinator, CurrentUser, require_roles
+from app.models import FinalistConsent, User
+from app.security.auth import Admin, Coordinator, CurrentUser, Exporter
 from app.services import audit, consent
 from app.services.http import attachment
 from app.services.purge import purge_finalist
@@ -22,7 +22,6 @@ from app.services.subject_export import build_export
 
 router = APIRouter(prefix="/api/v1", tags=["data protection"])
 StorageDep = Annotated[LocalStorage, Depends(get_storage)]
-Exporter = Annotated[User, Depends(require_roles(Role.ADMIN, Role.SECRETARIAT))]
 
 
 class ConsentIn(BaseModel):

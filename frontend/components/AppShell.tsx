@@ -15,6 +15,7 @@ import {
   IconPeople,
   IconPerson,
   IconRanking,
+  IconShield,
   IconSparkle,
 } from "@/components/Icons";
 import Logo from "@/components/Logo";
@@ -44,6 +45,7 @@ const NAV: NavItem[] = [
   { href: "/judges-pack", label: "Judges' Pack", icon: IconClipboard, match: (p) => p.startsWith("/judges-pack") },
   { href: "/reports", label: "Reports", icon: IconDocument, match: (p) => p.startsWith("/reports") },
   { href: "/admin/users", label: "Users", icon: IconPeople, match: (p) => p.startsWith("/admin/users"), show: (me) => me.permissions.manage_users },
+  { href: "/admin/roles", label: "Roles & Rights", icon: IconShield, match: (p) => p.startsWith("/admin/roles"), show: (me) => me.permissions.manage_users },
   { href: "/admin/costs", label: "AI Costs", icon: IconSparkle, match: (p) => p.startsWith("/admin/costs"), show: (me) => me.permissions.manage_users },
   { href: "/account", label: "Settings", icon: IconGear, match: (p) => p.startsWith("/account") },
 ];

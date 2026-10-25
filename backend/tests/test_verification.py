@@ -212,6 +212,9 @@ def test_only_reviewers_and_coordinators_can_review(client_for, coordinator, wor
         "approve_rubrics": False,
         "administer_rubrics": False,
         "generate_reports": False,
+        "manage_calibration": False,
+        "rate_calibration": True,
+        "export_personal_data": False,
         "manage_users": False,
     }
     assert coordinator.get("/api/v1/me").json()["permissions"]["review_claims"] is True

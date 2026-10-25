@@ -75,6 +75,15 @@ class User(Base):
     mfa_enabled: Mapped[bool] = mapped_column(default=False)
 
 
+class RolePermission(Base):
+    """A right an administrator has granted a user group (app/security/permissions.py)."""
+
+    __tablename__ = "role_permissions"
+
+    role: Mapped[Role] = mapped_column(_pg_enum(Role, "user_role"), primary_key=True)
+    permission: Mapped[str] = mapped_column(primary_key=True)
+
+
 class UserSession(Base):
     __tablename__ = "user_sessions"
 
