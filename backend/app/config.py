@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     login_max_failures: int = Field(default=5, gt=0)
     lockout_minutes: int = Field(default=15, gt=0)
-    password_min_length: int = Field(default=12, ge=8)
+    password_min_length: int = Field(default=8, ge=8)
     mfa_required_roles: list[str] = ["admin", "committee"]
 
     # File storage, encrypted at rest (spec §3, §12): "id:base64key,..." of 32-byte keys, kept

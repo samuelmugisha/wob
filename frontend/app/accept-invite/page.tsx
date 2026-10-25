@@ -32,11 +32,11 @@ function AcceptForm() {
     <form className="card auth-card" onSubmit={submit}>
       <h1>Set your password</h1>
       <p className="muted small">
-        At least 12 characters. A few unrelated words make a strong, memorable password.
+        At least 8 characters. A few unrelated words make a strong, memorable password.
       </p>
       <div className="field">
         <label htmlFor="pw">New password</label>
-        <input id="pw" type="password" autoComplete="new-password" minLength={12} value={password}
+        <input id="pw" type="password" autoComplete="new-password" minLength={8} value={password}
           onChange={(e) => setPassword(e.target.value)} required autoFocus />
       </div>
       <div className="field">

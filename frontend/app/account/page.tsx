@@ -89,7 +89,7 @@ function PasswordChange() {
       </div>
       <div className="field">
         <label htmlFor="new">New password (12+ characters)</label>
-        <input id="new" type="password" autoComplete="new-password" minLength={12} value={next}
+        <input id="new" type="password" autoComplete="new-password" minLength={8} value={next}
           onChange={(e) => setNext(e.target.value)} required />
       </div>
       <button type="submit">Change password</button>

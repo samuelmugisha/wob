@@ -55,7 +55,7 @@ To assist the judging committee of the Women on Boards Awards 2026 in assessing 
 | Control | Implementation |
 |---|---|
 | Access control | Invitation-only accounts with five roles; every API endpoint checks the role. Judges and committee members can read but not change evidence; only admins manage users. (`app/security/auth.py`) |
-| Authentication | Argon2id passwords (12 characters or more); accounts lock after 5 failures; sign-in errors are uniform, so they don't reveal whether an account exists; two-factor (TOTP) is required for admin and committee roles; HttpOnly, SameSite=Strict session cookies with a 12-hour lifetime and 60-minute idle timeout; tokens are stored only as hashes. (`app/security/accounts.py`) |
+| Authentication | Argon2id passwords (8 characters or more); accounts lock after 5 failures; sign-in errors are uniform, so they don't reveal whether an account exists; two-factor (TOTP) is required for admin and committee roles; HttpOnly, SameSite=Strict session cookies with a 12-hour lifetime and 60-minute idle timeout; tokens are stored only as hashes. (`app/security/accounts.py`) |
 | Encryption at rest, files | Each file has its own AES-256-GCM key, wrapped by a master key held outside the database and storage. Each file is bound to its storage path; any tampering is detected. Key rotation and a verification command are provided. (`app/services/storage.py`) |
 | Encryption at rest, database | **Not provided by the application.** Extracted text, claims and ratings sit in PostgreSQL. This must come from the hosting platform (encrypted disks or a managed database). |
 | Encryption in transit | **Deployment responsibility:** TLS on all public endpoints; database connections inside a private network. |

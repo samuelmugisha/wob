@@ -251,7 +251,7 @@ On the pack, anyone with the *Score candidates* right (judges by default) gives 
   - Configure it with `EMAIL_BACKEND=smtp` plus the `SMTP_*` and `EMAIL_FROM` settings in `.env.example`.
   - `EMAIL_BACKEND=console` writes emails to the API log, for local testing.
   - DigitalOcean blocks SMTP ports 25, 465 and 587, so on a droplet use a provider that accepts port 2525.
-- **Passwords** are hashed with Argon2id and must be at least 12 characters and not based on the email address.
+- **Passwords** are hashed with Argon2id and must be at least 8 characters (`PASSWORD_MIN_LENGTH`) and not based on the email address.
 - **Lockout:** five failed sign-ins lock the account for 15 minutes. Every failure returns the same message, so responses never reveal whether an account exists or is locked.
 - **Two-factor authentication (TOTP)** is available to everyone and required for admin and committee roles (`MFA_REQUIRED_ROLES`). Until it is on, those users can only reach their account page. TOTP secrets are encrypted with a key derived from `SECRET_KEY`.
 - **Browser sessions** use an HttpOnly, SameSite=Strict, Secure cookie, so scripts can't read the token and it isn't sent cross-site. Sessions last 12 hours and end after 60 minutes idle.
