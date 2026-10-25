@@ -31,9 +31,12 @@ def test_new_user_is_emailed_their_link(engine: Engine, settings) -> None:  # no
 
     [message] = email.OUTBOX
     assert message.to == "new.judge@example.org"
-    assert message.subject.startswith("You're invited")
+    assert message.subject == "You're invited to the Women on Boards Awards 2026 judging system"
     assert body["invite_link"] in message.text and "as a judge" in message.text
+    assert "open Judges' Pack in the menu" in message.text
+    assert "never by the other judges" in message.text and "expires in 72 hours" in message.text
     assert "Ada &lt;Judge&gt;" in message.html and "<Judge>" not in message.html
+    assert "Judges&#x27; Pack" in message.html
 
     # A new link is sent as a password reset.
     again = admin.post(f"/api/v1/users/{body['user']['id']}/invite").json()
@@ -47,6 +50,18 @@ def test_new_user_is_emailed_their_link(engine: Engine, settings) -> None:  # no
             {"u": body["user"]["id"]},
         ).all()
     assert actions.count("auth.invite_emailed") == 2
+
+
+def test_other_roles_get_the_general_invitation(engine: Engine, settings) -> None:  # noqa: F811
+    settings.email_backend = "memory"
+    admin_client(engine, settings).post(
+        "/api/v1/users",
+        json={"email": "rev@example.org", "display_name": "Rae", "role": "reviewer"},
+    )
+    [message] = email.OUTBOX
+    assert message.subject == "You're invited to the Women on Boards Awards evaluation system"
+    assert "as an evidence reviewer" in message.text
+    assert "Judges' Pack" not in message.text
 
 
 def test_failed_email_still_returns_the_link(engine: Engine, settings, monkeypatch) -> None:  # noqa: F811

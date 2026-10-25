@@ -248,6 +248,7 @@ On the pack, anyone with the *Score candidates* right (judges by default) gives 
 
 - **Accounts are invitation-only.** An admin creates an account on the *Users* page (or with `make user`), which produces a one-time set-password link valid for 72 hours. *New link* (or `make invite EMAIL=…`) resets a forgotten password: it signs the person out and resets their two-factor setup.
 - **Invitation emails.** When an admin invites someone or issues a new link, the person is emailed a button to set their password. The admin also sees whether the email was sent. If it wasn't, or email isn't set up, the link is shown so it can be shared another way.
+  - A judge's first invitation (subject "You're invited to the Women on Boards Awards 2026 judging system") also explains what judging involves, says that judges' scores are seen only by the awards team, and points them to *Judges' Pack*. Other roles, and new links for anyone, get the general wording (`app/services/email.py`).
   - Configure it with `EMAIL_BACKEND=smtp` plus the `SMTP_*` and `EMAIL_FROM` settings in `.env.example`.
   - `EMAIL_BACKEND=console` writes emails to the API log, for local testing.
   - DigitalOcean blocks SMTP ports 25, 465 and 587, so on a droplet use a provider that accepts port 2525.
