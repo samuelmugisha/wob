@@ -70,7 +70,7 @@ def test_category_report(coordinator, ranked) -> None:
     assert response.status_code == 201, response.text
     report = response.json()
     assert report["status"] == "succeeded" and report["snapshot_id"] == ranked["ranking"]["id"]
-    assert report["generator_version"] == "report-v1"
+    assert report["generator_version"] == "report-v2"
 
     content = download(coordinator, report)
     assert content.startswith(b"%PDF")
