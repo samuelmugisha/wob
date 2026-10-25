@@ -36,15 +36,18 @@ export default function JudgesPackPage() {
     );
   }
 
-  /** Generate the reports this category's pack is missing, from its latest ranking. */
-  async function generateMissing(category: JudgesPackCategory) {
+  /** Generate this category's pack reports from its latest ranking: the missing ones, or (all)
+   * every one again, e.g. after the report layout changes. The pack shows the newest. */
+  async function generateReports(category: JudgesPackCategory, all: boolean) {
+    const count = 1 + category.finalists.length;
+    if (all && !window.confirm(`Regenerate all ${count} reports for ${category.name} from its latest ranking? Judges will see the new reports.`)) return;
     setBusy(category.id);
     setError(null);
     try {
-      if (!category.category_report) {
+      if (all || !category.category_report) {
         await api.createReport({ kind: "category", category_id: category.id });
       }
-      for (const f of category.finalists.filter((f) => !f.report)) {
+      for (const f of category.finalists.filter((f) => all || !f.report)) {
         await api.createReport({ kind: "individual", category_id: category.id, finalist_id: f.finalist_id });
       }
     } catch (e) {
@@ -128,11 +131,16 @@ export default function JudgesPackPage() {
                   ) : (
                     <span className="muted small">No category report yet.</span>
                   )}
-                  {canGenerate && missing > 0 && (
-                    <button className="secondary" onClick={() => generateMissing(category)} disabled={busy !== null}>
-                      {busy === category.id ? "Generating…" : `Generate ${missing} missing report${missing === 1 ? "" : "s"}`}
-                    </button>
-                  )}
+                  {canGenerate &&
+                    (missing > 0 ? (
+                      <button className="secondary" onClick={() => generateReports(category, false)} disabled={busy !== null}>
+                        {busy === category.id ? "Generating…" : `Generate ${missing} missing report${missing === 1 ? "" : "s"}`}
+                      </button>
+                    ) : (
+                      <button className="secondary" onClick={() => generateReports(category, true)} disabled={busy !== null}>
+                        {busy === category.id ? "Regenerating…" : "Regenerate all reports"}
+                      </button>
+                    ))}
                 </div>
                 <div className="pack-finalists">
                   {category.finalists.map((f) => (

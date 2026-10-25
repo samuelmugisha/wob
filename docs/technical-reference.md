@@ -236,7 +236,7 @@ Scores, ranks and ratings come from the immutable snapshot. A rating reviewed af
 
 ### Judges' pack
 
-*Judges' Pack* in the menu (`GET /api/v1/judges-pack`) gathers each category's top three finalists from its latest ranking, with everyone tied for third included. For each finalist it shows the rank, the score, any AI ratings not yet reviewed, the individual report generated from that ranking, and their documents. Withdrawn documents are left out, and so are files that haven't passed the malware scan. Each category also links its category report. Users who can generate reports get a button that creates any missing reports from the latest ranking. Every signed-in user can open the pack, and blind raters in an open calibration study don't see that category. Downloads go through the usual audited endpoints.
+*Judges' Pack* in the menu (`GET /api/v1/judges-pack`) gathers each category's top three finalists from its latest ranking, with everyone tied for third included. For each finalist it shows the rank, the score, any AI ratings not yet reviewed, the individual report generated from that ranking, and their documents. Withdrawn documents are left out, and so are files that haven't passed the malware scan. Each category also links its category report. Users who can generate reports get a button that creates any missing reports from the latest ranking. Once none are missing, *Regenerate all reports* creates the category report and every finalist's report again, for example after the report layout changes. The pack always shows the newest. Every signed-in user can open the pack, and blind raters in an open calibration study don't see that category. Downloads go through the usual audited endpoints.
 
 ### Judges' scores
 
