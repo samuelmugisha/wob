@@ -54,8 +54,11 @@ the newest backup.
 
    The Space is public by default. Add `--private` to create it private.
 3. In the Space's **Settings**:
-   - **Persistent storage.** Add it (it is mounted at `/data`). Without it, every restart reloads
-     the backup and loses everything done since. The start-up log warns when it is missing.
+   - **Variables.** Set `BACKUP_UPLOAD=true` (step 5). Spaces have no persistent disk:
+     Hugging Face retired that add-on in 2026, and its replacement, Storage Buckets, is network
+     storage that PostgreSQL should not run on. The dataset is the Space's persistence instead.
+     Without `BACKUP_UPLOAD`, every restart reloads the server backup and loses everything done
+     since. The start-up log warns when it is off.
    - **Hardware.** The free *CPU basic* tier (2 vCPU, 16 GB) runs the system, but it sleeps after
      about two days without visitors, and the next visit waits several minutes for it to start.
      Paid hardware can stay awake.
@@ -75,21 +78,33 @@ While both systems run, changes made on the server do not reach the Space. To sw
 
 1. Tell users to stop working on the server, then run `backup.sh` and `upload-backup` again.
 2. In the Space's settings, set the variable `RESTORE_BACKUP` to the new backup's timestamp. The
-   Space restarts and restores that backup. Its previous data is moved to `/data/previous`; it
-   is not deleted.
+   Space saves a last backup of its own data, restarts and restores the server backup. The
+   Space's earlier data stays in the dataset as a `space-…` backup.
 3. Check the counts in the log, then announce the new address. Stop the DigitalOcean stack only
    once the Space has run correctly for a while, and keep the last server backup.
 
-`RESTORE_BACKUP` is acted on only when it differs from the backup in use, so leaving it set is
+Use `RESTORE_BACKUP` for this, not `upload-backup` alone. Uploading marks the server backup as
+`LATEST`, but the Space's next save marks its own backup as latest again.
+
+`RESTORE_BACKUP` is acted on once. Every Space backup records the backup its data started from,
+and a backup that was already restored is not restored again, so leaving the variable set is
 safe. Once users work in the Space, its own data is the original. Restoring an older backup
-overwrites their work. The data kept in `/data/previous` is the only way back.
+overwrites their work, and only the `space-…` backups in the dataset lead back.
 
 ## 5. Ongoing backups from the Space
 
 Set the variable `BACKUP_UPLOAD=true`. The Space token also needs write access to the dataset.
-The Space then uploads a dump and the encrypted files every `BACKUP_INTERVAL_HOURS` hours
-(default 24) as `space-<timestamp>/`, and marks each upload as `LATEST`. To restore one, set
-`RESTORE_BACKUP` to its name.
+
+- Every `BACKUP_INTERVAL_MINUTES` (default 60), the Space uploads a dump and the encrypted files
+  as `space-<timestamp>/` and marks it as `LATEST`. It skips the upload when nothing changed.
+- When the Space stops (sleep, restart, update or a settings change), it stops the app and
+  saves a final backup. Only a crash loses work, and at most one interval of it.
+- On start, it restores `LATEST`, so it carries on where it stopped.
+- It keeps the newest `BACKUP_KEEP` (default 24) Space backups and deletes older ones. Server
+  backups uploaded with `upload-backup` are never deleted. Deleted files still count towards
+  the dataset's storage in its history.
+
+To go back to a particular backup, set `RESTORE_BACKUP` to its name.
 
 ## Updating the app
 
