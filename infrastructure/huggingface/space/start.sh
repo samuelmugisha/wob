@@ -11,6 +11,8 @@ PGDATA=$DATA/pgdata
 STORAGE=$DATA/storage
 MARK=$DATA/.restored-backup  # id of the backup the data came from ("empty" if none)
 log() { echo "[start] $*"; }
+# The image's ~/.cache belongs to root (created at build time), so keep the Hub cache in $DATA.
+export HF_HOME=$DATA/huggingface
 
 touch "$DATA/.write-test" && rm "$DATA/.write-test"
 if ! mountpoint -q "$DATA"; then

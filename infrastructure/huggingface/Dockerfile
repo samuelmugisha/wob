@@ -21,7 +21,7 @@ RUN apt-get update \
        tesseract-ocr tesseract-ocr-eng clamav clamav-daemon \
     && install -d /usr/share/postgresql-common/pgdg /etc/postgresql-common/createcluster.d \
     && echo 'create_main_cluster = false' > /etc/postgresql-common/createcluster.d/no-main.conf \
-    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && curl -fsSL --retry 5 --retry-all-errors -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
        > /etc/apt/sources.list.d/pgdg.list \
